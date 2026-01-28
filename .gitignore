@@ -32,6 +32,14 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+pg_data/
+pgdata_repl/
+prometheus_data/
+redis_data/
+mongo*/
+dumps/
+api/
+connections/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

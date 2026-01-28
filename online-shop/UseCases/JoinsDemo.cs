@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+п»їusing Microsoft.EntityFrameworkCore;
 
 namespace ECommerce.App.UseCases;
 public static class JoinsDemo
@@ -6,7 +6,7 @@ public static class JoinsDemo
     public static async Task RunAsync(ECommerce.Data.ECommerceDbContext db, CancellationToken ct = default)
     {
 
-        // (2 запроса) объединение 2 таблиц
+        // (2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅ
         var q2_1 = await db.Products
             .Join(db.Brands, p => p.BrandId, b => b.BrandId, (p, b) => new { p.ProductId, p.Name, Brand = b.Name })
             .Take(100).ToListAsync(ct);
@@ -15,7 +15,7 @@ public static class JoinsDemo
             .Join(db.Customers, c => c.CustomerId, cu => cu.CustomerId, (c, cu) => new { c.CartId, cu.FirstName, cu.LastName })
             .Take(100).ToListAsync(ct);
 
-        // (4 запроса) объединение 3 таблиц
+        // (4 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 3 пїЅпїЅпїЅпїЅпїЅпїЅ
         var q3_1 = await db.Variants
             .Join(db.Products, v => v.ProductId, p => p.ProductId, (v, p) => new { v, p })
             .Join(db.Categories, vp => vp.p.CategoryId, c => c.CategoryId, (vp, c) => new { vp.v.VariantId, Product = vp.p.Name, Category = c.Name })
@@ -36,14 +36,14 @@ public static class JoinsDemo
             .Join(db.Brands, x => x.p.BrandId, b => b.BrandId, (x, b) => new { Media = x.m.Url, Product = x.p.Name, Brand = b.Name })
             .Take(100).ToListAsync(ct);
 
-        // (1 запрос) объединение 4 таблиц
+        // (1 пїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 4 пїЅпїЅпїЅпїЅпїЅпїЅ
         var q4_1 = await db.CartItems
             .Join(db.Carts, ci => ci.CartId, c => c.CartId, (ci, c) => new { ci, c })
             .Join(db.Customers, x => x.c.CustomerId, cu => cu.CustomerId, (x, cu) => new { x.ci, cu })
             .Join(db.Variants, y => y.ci.VariantId, v => v.VariantId, (y, v) => new { y.ci, y.cu.FirstName, v.Sku })
             .Take(100).ToListAsync(ct);
 
-        // (1 запрос) объединение 5 таблиц
+        // (1 пїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅпїЅ
         var q5_1 = await db.CartItems
             .Join(db.Carts, ci => ci.CartId, c => c.CartId, (ci, c) => new { ci, c })
             .Join(db.Customers, x => x.c.CustomerId, cu => cu.CustomerId, (x, cu) => new { x.ci, x.c, cu })

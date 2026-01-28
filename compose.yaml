@@ -1,0 +1,176 @@
+services:
+  db:
+    image: postgres:16
+    container_name: pg_db
+    environment:
+      POSTGRES_USER: pg
+      POSTGRES_PASSWORD: pg
+    command: ["postgres",
+      "-c", "maintenance_work_mem=128MB",
+      "-c", "max_connections=200"
+    ]
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+  pg_repl:
+    image: postgres:16
+    container_name: pg_repl
+    environment:
+      POSTGRES_USER: repl_user
+      POSTGRES_PASSWORD: repl_pass
+    command: ["postgres",
+      "-c", "hot_standby=on",
+      "-c", "max_wal_senders=5",
+      "-c", "wal_level=replica"
+    ]
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./pgdata_repl:/var/lib/postgresql/data
+    depends_on:
+      - db
+
+  pg_dumper:
+    image: postgres:16
+    container_name: pg_dumper
+    depends_on:
+      - db
+    volumes:
+      - ./dumps:/dumps
+    ports:
+      - "5434:5432"
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    restart: unless-stopped
+    ports: [ "27017:27017" ]
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: pass
+    volumes:
+      - ./mongo_data:/data/db
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ./mongo/keystore:/key
+      - ./mongo/init:/init
+
+  mongo-express:
+    image: mongo-express:1.0.2-20
+    restart: unless-stopped
+    ports: [ "8081:8081" ]
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: pass
+      ME_CONFIG_MONGODB_URL: mongodb://root:pass@mongo:27017/
+    depends_on: [ mongo ]
+
+  mongo_exporter:
+    image: percona/mongodb_exporter:0.47.2
+    environment:
+      - MONGODB_URI=mongodb://mongo_expr:mongo_expr@mongo:27017/admin?authSource=admin&directConnection=true
+    ports:
+      - "9216:9216"
+    command:
+      - '--collect-all'
+    depends_on:
+      - mongo
+
+  mongo_exporter_2:
+    image: percona/mongodb_exporter:0.47.2
+    environment:
+      - MONGODB_URI=mongodb://mongo_expr:mongo_expr@mongo2:27017/admin?authSource=admin&directConnection=true
+    ports:
+      - "9217:9216"
+    command:
+      - '--collect-all'
+    depends_on:
+      - mongo2
+
+  mongo_exporter_3:
+    image: percona/mongodb_exporter:0.47.2
+    environment:
+      - MONGODB_URI=mongodb://mongo_expr:mongo_expr@mongo3:27017/admin?authSource=admin&directConnection=true
+    ports:
+      - "9218:9216"
+    command:
+      - '--collect-all'
+    depends_on:
+      - mongo3
+
+  mongo2:
+    image: mongo:7
+    container_name: mongo2
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    volumes:
+      - ./mongo2_data:/data/db
+      - ./mongo/keystore:/key
+    ports:
+      - "27018:27017"
+      - "27020:27020"
+
+  mongo3:
+    image: mongo:7
+    container_name: mongo3
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    volumes:
+      - ./mongo3_data:/data/db
+      - ./mongo/keystore:/key
+    ports:
+      - "27019:27017"
+      - "27021:27021"
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_URI=pg_db:5432/postgres?sslmode=disable
+      - DATA_SOURCE_USER=prom_exp
+      - DATA_SOURCE_PASS=prom_pass
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "9187:9187"
+  postgres-exporter_2:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      - DATA_SOURCE_URI=pg_repl:5432/postgres?sslmode=disable
+      - DATA_SOURCE_USER=prom_exp
+      - DATA_SOURCE_PASS=prom_pass
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "9188:9187"
+
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    restart: always
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+    ports:
+      - "3031:3000"
+    restart: always
+    depends_on:
+      - prometheus
+
+  redis:
+    image: redis
+    volumes:
+      - ./redis_data:/redis_data
+    ports: 
+      - "6379:6379"
+    
