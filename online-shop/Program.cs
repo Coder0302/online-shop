@@ -45,7 +45,7 @@ if (arg == "seed" || arg == "seed_new")
             TargetCartItems: 3_200_000, // 3–3.5 млн — регулируется тут
             MaxItemsPerCart: 12
         );
-        //await seed.RunAsync(seedOptions);
+        await seed.RunAsync(seedOptions);
     }
     catch (Exception ex)
     {
