@@ -35,13 +35,15 @@ services:
   pg_dumper:
     image: postgres:16
     container_name: pg_dumper
+    environment:
+      POSTGRES_USER: pg
+      POSTGRES_PASSWORD: pg
     depends_on:
       - db
     volumes:
       - ./dumps:/dumps
     ports:
       - "5434:5432"
-
   mongo:
     image: mongo:7
     container_name: mongo
