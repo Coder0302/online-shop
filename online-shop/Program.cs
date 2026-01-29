@@ -21,6 +21,81 @@ var optBuilder = new DbContextOptionsBuilder<ECommerceDbContext>()
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
+using var db = new ECommerceDbContext(optBuilder.Options);
+
+foreach (var arg in args)
+if (arg == "seed" || arg == "seed_new")
+{
+    // if (arg == "seed_new")
+    // Console.WriteLine("Applying schema fixes/migrations...");
+    // await InitAndFixes.ApplyAsync(db);
+    try
+    {
+        Console.WriteLine("Seeding data (this can take a while for millions of rows)...");
+        var seed = new SeedRunner(cs, db);
+        var seedOptions = new SeedOptions(
+            Brands: 1000,
+            Categories: 100,
+            Products: 5000,
+            VariantsPerProductMin: 1,
+            VariantsPerProductMax: 3,
+            Warehouses: 5,
+            PriceLists: 2,
+            Customers: 15_000,
+            TargetCartItems: 3_200_000, // 3–3.5 млн — регулируется тут
+            MaxItemsPerCart: 12
+        );
+        //await seed.RunAsync(seedOptions);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex);
+    }
+
+    Console.WriteLine("Начинаем тесты");
+    Stopwatch sw;
+    try
+    {
+        var demo = new AggregateAndWindowsDemo(db);
+        Console.WriteLine("Агрегаторы начало");
+        sw = Stopwatch.StartNew();
+        /// Агрегаторы
+        await demo.ActiveProductsByCategoryAsync();
+        await demo.SkusPerProductAsync();
+        await demo.AvailableStockPerVariantAsync();
+        await demo.AvgCurrentPriceByBrandAsync("RRP");
+        await demo.CartTotalsByCustomerAsync();
+        Console.WriteLine($"Агрегаторы конец: {sw.ElapsedMilliseconds} мс.");
+
+        Console.WriteLine("Оконные начало");
+        sw = Stopwatch.StartNew();
+        /// Оконные
+        await demo.PriceRankWithinCategoryAsync("RRP");
+        await demo.LatestPricePerVariantAsync("RRP");
+        await demo.RunningCartValuePerCustomerAsync();
+        Console.WriteLine($"Оконные конец: {sw.ElapsedMilliseconds} мс.");
+
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex);
+    }
+
+    try
+    {
+        Console.WriteLine("Joins начало");
+        sw = Stopwatch.StartNew();
+        await JoinsDemo.RunAsync(db);
+        Console.WriteLine($"Joins конец: {sw.ElapsedMilliseconds} мс.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(ex);
+    }
+
+    Console.WriteLine("Done.");
+}
+
 var settings = JsonWriterSettings.Defaults.Clone();
 settings.Indent = true;
 
@@ -30,7 +105,7 @@ Console.WriteLine(builder.Configuration["MG_CONN"]);
 var con_set = MongoClientSettings.FromConnectionString(builder.Configuration["MG_CONN"]);
 var mgcl = new MongoClient(con_set);
 var products = mgcl.GetDatabase("shop").GetCollection<BsonDocument>("brands");
-using var db = new ECommerceDbContext(optBuilder.Options);
+
 var allprod = products.Find(new BsonDocument()).ToList();
 Console.WriteLine(allprod.First().ToJson(settings));
 var redis = ConnectionMultiplexer.Connect(builder.Configuration["RS_CONN"]);
@@ -83,71 +158,3 @@ app.UseSwaggerUI();
 app.UseHttpsRedirection();
 app.MapControllers();
 app.Run();
-//Console.WriteLine("Applying schema fixes/migrations...");
-//await InitAndFixes.ApplyAsync(db);
-
-// try
-// {
-//     Console.WriteLine("Seeding data (this can take a while for millions of rows)...");
-//     var seed = new SeedRunner(cs, db);
-//     var seedOptions = new SeedOptions(
-//         Brands: 1000,
-//         Categories: 100,
-//         Products: 5000,
-//         VariantsPerProductMin: 1,
-//         VariantsPerProductMax: 3,
-//         Warehouses: 5,
-//         PriceLists: 2,
-//         Customers: 15_000,
-//         TargetCartItems: 3_200_000, // 3–3.5 млн — регулируется тут
-//         MaxItemsPerCart: 12
-//     );
-//     //await seed.RunAsync(seedOptions);
-// }
-// catch (Exception ex)
-// {
-//     Console.WriteLine(ex);
-// }
-
-// Console.WriteLine("Начинаем тесты");
-// Stopwatch sw;
-// try
-// {
-//     var demo = new AggregateAndWindowsDemo(db);
-//     Console.WriteLine("Агрегаторы начало");
-//     sw = Stopwatch.StartNew();
-//     /// Агрегаторы
-//     await demo.ActiveProductsByCategoryAsync();
-//     await demo.SkusPerProductAsync();
-//     await demo.AvailableStockPerVariantAsync();
-//     await demo.AvgCurrentPriceByBrandAsync("RRP");
-//     await demo.CartTotalsByCustomerAsync();
-//     Console.WriteLine($"Агрегаторы конец: {sw.ElapsedMilliseconds} мс.");
-
-//     Console.WriteLine("Оконные начало");
-//     sw = Stopwatch.StartNew();
-//     /// Оконные
-//     await demo.PriceRankWithinCategoryAsync("RRP");
-//     await demo.LatestPricePerVariantAsync("RRP");
-//     await demo.RunningCartValuePerCustomerAsync();
-//     Console.WriteLine($"Оконные конец: {sw.ElapsedMilliseconds} мс.");
-
-// }
-// catch (Exception ex)
-// {
-//     Console.WriteLine(ex);
-// }
-
-// try
-// {
-//     Console.WriteLine("Joins начало");
-//     sw = Stopwatch.StartNew();
-//     await JoinsDemo.RunAsync(db);
-//     Console.WriteLine($"Joins конец: {sw.ElapsedMilliseconds} мс.");
-// }
-// catch (Exception ex)
-// {
-//     Console.WriteLine(ex);
-// }
-
-// Console.WriteLine("Done.");
