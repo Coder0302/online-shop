@@ -9,6 +9,11 @@ using System.Diagnostics;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
+using Microsoft.EntityFrameworkCore;
+using ECommerce.Data;
+using Swashbuckle.AspNetCore.Swagger;
+using System.Text;
+using ECommerce.Controller;
 
 var cs = AppConfig.ConnectionStringPg;
 var optBuilder = new DbContextOptionsBuilder<ECommerceDbContext>()
@@ -37,6 +42,47 @@ redisdb.StringSet("mykey", "Hello from C#");
 // Чтение данных
 string value = redisdb.StringGet("mykey");
 Console.WriteLine(value);
+builder.Services.AddDbContextPool<ECommerceDbContext>(sp =>
+{
+    sp.UseNpgsql(builder.Configuration["PG_CONN"]);
+});
+builder.Services.AddScoped<JsonWriterSettings>();
+builder.Services.AddScoped<ECommerceDbContext>();
+builder.Services.AddScoped<ShopController>();
+builder.Services.AddSingleton<IMongoClient>(mgcl);
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddScoped( sp =>
+{
+    return sp.GetRequiredService<IMongoClient>().GetDatabase("shop");
+});
+builder.Services.AddScoped(sp =>
+{
+    return sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
+});
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "abc API",
+        Version = "v1",
+    });
+});
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReact",
+        policy => policy
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+});
+var app = builder.Build();
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
+app.MapControllers();
+app.Run();
 //Console.WriteLine("Applying schema fixes/migrations...");
 //await InitAndFixes.ApplyAsync(db);
 
