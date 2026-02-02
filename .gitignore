@@ -40,6 +40,8 @@ mongo*/
 neo4j*/
 dumps/
 api/
+myenv/
+env/
 connections/
 
 # Visual Studio 2015/2017 cache/options directory

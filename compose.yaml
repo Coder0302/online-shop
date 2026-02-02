@@ -49,7 +49,7 @@ services:
     container_name: mongo
     restart: unless-stopped
     ports: [ "27017:27017" ]
-    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
@@ -105,7 +105,7 @@ services:
   mongo2:
     image: mongo:7
     container_name: mongo2
-    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
       - ./mongo2_data:/data/db
       - ./mongo/keystore:/key
@@ -116,7 +116,7 @@ services:
   mongo3:
     image: mongo:7
     container_name: mongo3
-    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
       - ./mongo3_data:/data/db
       - ./mongo/keystore:/key
