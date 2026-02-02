@@ -175,4 +175,15 @@ services:
       - ./redis_data:/redis_data
     ports: 
       - "6379:6379"
-    
+
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - ./neo4j_data:/data

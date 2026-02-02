@@ -37,6 +37,7 @@ pgdata_repl/
 prometheus_data/
 redis_data/
 mongo*/
+neo4j*/
 dumps/
 api/
 connections/
