@@ -9,8 +9,6 @@ using System.Diagnostics;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
-using Microsoft.EntityFrameworkCore;
-using ECommerce.Data;
 using Swashbuckle.AspNetCore.Swagger;
 using System.Text;
 using ECommerce.Controller;
@@ -106,17 +104,9 @@ var con_set = MongoClientSettings.FromConnectionString(builder.Configuration["MG
 var mgcl = new MongoClient(con_set);
 var products = mgcl.GetDatabase("shop").GetCollection<BsonDocument>("brands");
 
-var allprod = products.Find(new BsonDocument()).ToList();
-Console.WriteLine(allprod.First().ToJson(settings));
 var redis = ConnectionMultiplexer.Connect(builder.Configuration["RS_CONN"]);
 var redisdb = redis.GetDatabase();
 
-// Запись данных
-redisdb.StringSet("mykey", "Hello from C#");
-
-// Чтение данных
-string value = redisdb.StringGet("mykey");
-Console.WriteLine(value);
 builder.Services.AddDbContextPool<ECommerceDbContext>(sp =>
 {
     sp.UseNpgsql(builder.Configuration["PG_CONN"]);
@@ -136,14 +126,7 @@ builder.Services.AddScoped(sp =>
 });
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "abc API",
-        Version = "v1",
-    });
-});
+builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact",
