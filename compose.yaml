@@ -147,7 +147,6 @@ services:
     ports:
       - "9188:9187"
 
-
   prometheus:
     image: prom/prometheus:v2.51.2
     volumes:
@@ -181,9 +180,13 @@ services:
     container_name: neo4j
     environment:
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_server_jvm_additional=-javaagent:/var/lib/neo4j/jmx_exporter/jmx_prometheus_javaagent.jar=20048:/var/lib/neo4j/jmx_exporter/config.yaml
     ports:
       - "7474:7474"
+      - "20048:20048"
       - "7687:7687"
     volumes:
       - ./neo4j_data:/data
+      - ./neo4j_logs:/logs
+      - ./neo4j_conf:/conf
+      - ./jmx_exporter:/var/lib/neo4j/jmx_exporter
