@@ -13,6 +13,7 @@ using Swashbuckle.AspNetCore.Swagger;
 using System.Text;
 using ECommerce.Controller;
 using Neo4j.Driver;
+using project.Services;
 
 var cs = AppConfig.ConnectionStringPg;
 var optBuilder = new DbContextOptionsBuilder<ECommerceDbContext>()
@@ -130,6 +131,7 @@ var testResult = await testSession.ExecuteReadAsync(async tx =>
 
 Console.WriteLine($"Neo4j подключен: {testResult["test"]}");
 builder.Services.AddScoped<JsonWriterSettings>();
+builder.Services.AddScoped<INeo4jService, Neo4jService>();
 builder.Services.AddScoped<ECommerceDbContext>();
 builder.Services.AddScoped<ShopController>();
 builder.Services.AddSingleton<IMongoClient>(mgcl);

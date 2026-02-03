@@ -6,21 +6,24 @@ using StackExchange.Redis;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Neo4j.Driver;
+using project.Services;
 
 namespace ECommerce.Controller {
     [Route("api/[controller]")]
     [ApiController]
     public class ShopController : ControllerBase {
+        public Neo4jService _neo4jService;
         public readonly IMongoDatabase _MongoClient;
         public readonly IDatabase _RedisClient;
         public readonly Data.ECommerceDbContext _eCommerceDbContext;
         public readonly IDriver _neo4jDriver;
-        public ShopController(IMongoDatabase mongoClient, IDatabase connectionMultiplexer, Data.ECommerceDbContext eCommerceDbContext, IDriver neo4jDriver)
+        public ShopController(IMongoDatabase mongoClient, IDatabase connectionMultiplexer, Data.ECommerceDbContext eCommerceDbContext, IDriver neo4jDriver, Neo4jService neo4jservice)
         {
             _MongoClient = mongoClient;
             _RedisClient = connectionMultiplexer;
             _eCommerceDbContext = eCommerceDbContext;
             _neo4jDriver = neo4jDriver;
+            _neo4jService = neo4jservice;
         }
         [HttpGet("products")]
         public async Task<IActionResult> GetProducts()
@@ -222,5 +225,17 @@ namespace ECommerce.Controller {
         {
             public string Name { get; set; } = string.Empty;
         }
+
+        [HttpGet("test")]
+        public async Task<IActionResult> test()
+        {
+            _neo4jService.test();
+
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Deleted item with number"
+                });
+        }  
     }
 }
