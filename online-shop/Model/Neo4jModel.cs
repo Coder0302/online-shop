@@ -2,37 +2,70 @@ using System.Text.Json.Serialization;
 
 namespace project.Models.Neo4jModels
 {
-    public abstract class Neo4jEdge
-    {   
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-
-        [JsonPropertyName("type")]
-        public string Type { get; set; }
-        
-        [JsonPropertyName("Date")]
-        public DateTime Date { get; set; } = DateTime.UtcNow;
-        
-        public abstract Dictionary<string, object> ToProperties();
+    public enum TypeEdge
+    {
+        SHOWN,
+        VIEWED = 1,
+        LIKED = 2,
+        PURCHASED = 3,
+        BOUGHT_TOGETHER = 4,
+        VISITED = 5,
+        QUANTITY = 6
+    }
+    public enum TypeNode
+    {
+        USER = 1,
+        PRODUCT = 2,
+        STORE = 3
     }
 
     public abstract class Neo4jVoidEdge
     {   
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        required public string Name { get; set; }
 
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public TypeEdge Type { get; set; }
 
+        public TypeNode TypeNodeSrc { get; set; }
+        public TypeNode TypeNodeDst { get; set; }
         public abstract Dictionary<string, object> ToProperties();
     }
 
+    public abstract class Neo4jEdge : Neo4jVoidEdge
+    {   
+        [JsonPropertyName("Date")]
+        public DateTime Date { get; set; } = DateTime.UtcNow;
+    }
+
+    public class ShownEdge : Neo4jEdge
+    {
+        public ShownEdge()
+        {
+            Name = "SHOWN";
+            TypeNodeSrc = TypeNode.PRODUCT;
+            TypeNodeDst = TypeNode.USER;
+            Type = TypeEdge.SHOWN;
+        }
+
+        public override Dictionary<string, object> ToProperties()
+        {
+            return new Dictionary<string, object>
+            {
+                ["name"] = Name,
+                ["type"] = Type,
+                ["date"] = Date
+            };
+        }
+    }
     public class ViewedEdge : Neo4jEdge
     {
         public ViewedEdge()
         {
             Name = "VIEWED";
-            Type = "VIEWED";
+            TypeNodeSrc = TypeNode.USER;
+            TypeNodeDst = TypeNode.PRODUCT;
+            Type = TypeEdge.VIEWED;
         }
 
         public override Dictionary<string, object> ToProperties()
@@ -51,7 +84,9 @@ namespace project.Models.Neo4jModels
         public LikedEdge()
         {
             Name = "LIKED";
-            Type = "LIKED";
+            TypeNodeSrc = TypeNode.USER;
+            TypeNodeDst = TypeNode.PRODUCT;
+            Type = TypeEdge.LIKED;
         }
 
         public override Dictionary<string, object> ToProperties()
@@ -70,7 +105,9 @@ namespace project.Models.Neo4jModels
         public PurchasedEdge()
         {
             Name = "PURCHASED";
-            Type = "PURCHASED";
+            TypeNodeSrc = TypeNode.USER;
+            TypeNodeDst = TypeNode.PRODUCT;
+            Type = TypeEdge.PURCHASED;
         }
         
         [JsonPropertyName("rating")]
@@ -97,8 +134,10 @@ namespace project.Models.Neo4jModels
     {
         public BoughtTogetherEdge()
         {
+            TypeNodeSrc = TypeNode.PRODUCT;
+            TypeNodeDst = TypeNode.PRODUCT;
             Name = "BOUGHT_TOGETHER";
-            Type = "BOUGHT_TOGETHER";
+            Type = TypeEdge.BOUGHT_TOGETHER;
         }
 
         public override Dictionary<string, object> ToProperties()
@@ -116,7 +155,9 @@ namespace project.Models.Neo4jModels
         public VisitedEdge()
         {
             Name = "VISITED";
-            Type = "VISITED";
+            TypeNodeSrc = TypeNode.USER;
+            TypeNodeDst = TypeNode.STORE;
+            Type = TypeEdge.VISITED;
         }
 
         public override Dictionary<string, object> ToProperties()
@@ -135,7 +176,9 @@ namespace project.Models.Neo4jModels
         public QuantityEdge()
         {
             Name = "QUANTITY";
-            Type = "QUANTITY";
+            TypeNodeSrc = TypeNode.STORE;
+            TypeNodeDst = TypeNode.PRODUCT;
+            Type = TypeEdge.QUANTITY;
         }
         
         [JsonPropertyName("quantity")]
@@ -156,23 +199,24 @@ namespace project.Models.Neo4jModels
     public abstract class Neo4jNode
     {
         [JsonPropertyName("id")]
-        public string Id { get; set; } = Guid.NewGuid().ToString();
+        required public string Id { get; set; }
+        [JsonPropertyName("name")]
+        required public string Name { get; set; }
         
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public TypeNode Type { get; set; }
         
         public abstract Dictionary<string, object> ToProperties();
     }
 
     public class UserNode : Neo4jNode
     {
-        public UserNode()
+        public UserNode(string _name, string _id)
         {
-            Type = "User";
+            Id = _id;
+            Name = _name;
+            Type = TypeNode.USER;
         }
-        
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
 
         public override Dictionary<string, object> ToProperties()
         {
@@ -187,13 +231,12 @@ namespace project.Models.Neo4jModels
 
     public class ProductNode : Neo4jNode
     {
-        public ProductNode()
+        public ProductNode(string _name, string _id)
         {
-            Type = "Product";
+            Id = _id;
+            Name = _name;
+            Type = TypeNode.PRODUCT;
         }
-        
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
         
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = new();
@@ -215,13 +258,12 @@ namespace project.Models.Neo4jModels
 
     public class StoreNode : Neo4jNode
     {
-        public StoreNode()
+        public StoreNode(string _name, string _address)
         {
-            Type = "Store";
+            Name = _name;
+            Address = _address;
+            Type = TypeNode.STORE;
         }
-        
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
         
         [JsonPropertyName("address")]
         public string Address { get; set; }
