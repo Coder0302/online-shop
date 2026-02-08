@@ -33,6 +33,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 pg_data/
+pgdata/
 pgdata_repl/
 prometheus_data/
 redis_data/
