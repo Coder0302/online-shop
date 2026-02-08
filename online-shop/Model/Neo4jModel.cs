@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Npgsql.Replication;
+using ZstdSharp.Unsafe;
 
 namespace project.Models.Neo4jModels
 {
@@ -22,7 +24,7 @@ namespace project.Models.Neo4jModels
     public abstract class Neo4jVoidEdge
     {   
         [JsonPropertyName("name")]
-        required public string Name { get; set; }
+        public string Name { get; set; } 
 
         [JsonPropertyName("type")]
         public TypeEdge Type { get; set; }
@@ -53,7 +55,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["date"] = Date
             };
         }
@@ -73,7 +75,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["date"] = Date
             };
         }
@@ -94,7 +96,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["Date"] = Date
             };
         }
@@ -118,7 +120,7 @@ namespace project.Models.Neo4jModels
             var properties = new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["date"] = Date
             };
             
@@ -165,7 +167,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["date"] = Date
             };
         }
@@ -189,7 +191,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["quantity"] = Quantity,
                 ["date"] = Date
             };
@@ -201,7 +203,7 @@ namespace project.Models.Neo4jModels
         [JsonPropertyName("id")]
         required public string Id { get; set; }
         [JsonPropertyName("name")]
-        required public string Name { get; set; }
+        public string? Name { get; set; }
         
         [JsonPropertyName("type")]
         public TypeNode Type { get; set; }
@@ -209,12 +211,40 @@ namespace project.Models.Neo4jModels
         public abstract Dictionary<string, object> ToProperties();
     }
 
+    public static class Neo4jExtensions
+    {
+        public static string GetStringType(this Neo4jNode node)
+        {
+            return node.Type switch
+            {
+                TypeNode.USER => "User",
+                TypeNode.PRODUCT => "Product",
+                TypeNode.STORE => "Store",
+                _ => "Node"
+            };
+        }
+        public static int GetIntType(object typename)
+        {
+            return typename switch
+            {
+                "User" => (int)TypeNode.USER,
+                "Product" => (int)TypeNode.PRODUCT,
+                "Store" => (int)TypeNode.STORE,
+                _ => 0
+            };
+        }
+        
+        public static string GetStringType<T>() where T : Neo4jNode
+        {
+            var tempNode = Activator.CreateInstance<T>();
+            return tempNode.GetStringType();
+        }
+    }
+
     public class UserNode : Neo4jNode
     {
-        public UserNode(string _name, string _id)
+        public UserNode()
         {
-            Id = _id;
-            Name = _name;
             Type = TypeNode.USER;
         }
 
@@ -222,19 +252,19 @@ namespace project.Models.Neo4jModels
         {
             return new Dictionary<string, object>
             {
+                ["name"] = Name ?? "TEST",
                 ["id"] = Id,
-                ["type"] = Type,
-                ["name"] = Name
+                ["type"] = (int)Type
             };
         }
     }
 
+    public class VoidNode : UserNode;
+
     public class ProductNode : Neo4jNode
     {
-        public ProductNode(string _name, string _id)
+        public ProductNode()
         {
-            Id = _id;
-            Name = _name;
             Type = TypeNode.PRODUCT;
         }
         
@@ -248,8 +278,8 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["id"] = Id,
-                ["type"] = Type,
-                ["name"] = Name,
+                ["type"] = (int)Type,
+                ["name"] = Name ?? Id,
                 ["tags"] = Tags,
                 ["createdAt"] = CreatedAt
             };
@@ -258,15 +288,13 @@ namespace project.Models.Neo4jModels
 
     public class StoreNode : Neo4jNode
     {
-        public StoreNode(string _name, string _address)
+        public StoreNode()
         {
-            Name = _name;
-            Address = _address;
             Type = TypeNode.STORE;
         }
         
         [JsonPropertyName("address")]
-        public string Address { get; set; }
+        required public string Address { get; set; }
         
         [JsonPropertyName("capacity")]
         public int Capacity { get; set; }
@@ -276,8 +304,8 @@ namespace project.Models.Neo4jModels
             var props = new Dictionary<string, object>
             {
                 ["id"] = Id,
-                ["type"] = Type,
-                ["name"] = Name,
+                ["type"] = (int)Type,
+                ["name"] = Name ?? Id,
                 ["address"] = Address,
                 ["capacity"] = Capacity
             };

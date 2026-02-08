@@ -145,7 +145,7 @@ builder.Services.AddScoped(sp =>
     return sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
 });
 builder.Services.AddSingleton<IDriver>(neo4jDriver);
-//builder.Services.AddScoped<INeo4jService, Neo4jService>();
+builder.Services.AddScoped<INeo4jService, Neo4jService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
