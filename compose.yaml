@@ -160,10 +160,11 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.2
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./grafana_data:/var/lib/grafana
     ports:
-      - "3031:3000"
+      - "3030:3000"
     restart: always
     depends_on:
       - prometheus
