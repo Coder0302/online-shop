@@ -373,3 +373,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+
+grafana_data/
+grafana_data/alerting
