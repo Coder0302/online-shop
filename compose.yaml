@@ -1,4 +1,25 @@
 services:
+# подключисья к postgres и добавить роль prom_exp с паролем prom_pass и выдать ему роли, можно просто подключится к sql и вставить вот это
+# -- DROP ROLE prom_exp;
+
+# CREATE ROLE prom_exp WITH 
+# 	NOSUPERUSER
+# 	NOCREATEDB
+# 	NOCREATEROLE
+# 	NOINHERIT
+# 	LOGIN
+# 	REPLICATION
+# 	NOBYPASSRLS
+# 	CONNECTION LIMIT -1;
+
+# -- Permissions
+
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA sales GRANT SELECT ON TABLES TO prom_exp;
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA pricing GRANT SELECT ON TABLES TO prom_exp;
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA auth GRANT SELECT ON TABLES TO prom_exp;
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA inventory GRANT SELECT ON TABLES TO prom_exp;
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA crm GRANT SELECT ON TABLES TO prom_exp;
+# ALTER DEFAULT PRIVILEGES FOR ROLE pg IN SCHEMA "catalog" GRANT SELECT ON TABLES TO prom_exp;
   db:
     image: postgres:16
     container_name: pg_db
