@@ -6,21 +6,26 @@ using StackExchange.Redis;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Neo4j.Driver;
+using project.Services;
+using project.Models.Neo4jModels;
+using System.Data.Common;
 
 namespace ECommerce.Controller {
     [Route("api/[controller]")]
     [ApiController]
     public class ShopController : ControllerBase {
+        public INeo4jService _neo4jService;
         public readonly IMongoDatabase _MongoClient;
         public readonly IDatabase _RedisClient;
         public readonly Data.ECommerceDbContext _eCommerceDbContext;
         public readonly IDriver _neo4jDriver;
-        public ShopController(IMongoDatabase mongoClient, IDatabase connectionMultiplexer, Data.ECommerceDbContext eCommerceDbContext, IDriver neo4jDriver)
+        public ShopController(IMongoDatabase mongoClient, IDatabase connectionMultiplexer, Data.ECommerceDbContext eCommerceDbContext, IDriver neo4jDriver, INeo4jService neo4jservice)
         {
             _MongoClient = mongoClient;
             _RedisClient = connectionMultiplexer;
             _eCommerceDbContext = eCommerceDbContext;
             _neo4jDriver = neo4jDriver;
+            _neo4jService = neo4jservice;
         }
         [HttpGet("products")]
         public async Task<IActionResult> GetProducts()
@@ -221,6 +226,175 @@ namespace ECommerce.Controller {
         public class CreateItemRequest
         {
             public string Name { get; set; } = string.Empty;
+        }
+
+        public class CreateNodeUser
+        {
+            public string _id {get;set;} = string.Empty;
+            public string _name {get;set;} = string.Empty;
+        }
+        public class CreateNodeProduct
+        {
+            public string _id {get;set;} = string.Empty;
+            public string _name {get;set;} = string.Empty;
+            public string _tags {get;set;} = string.Empty;
+        }
+        public class CreatetestCreateEdgeVievedNodeUserDto
+        {
+            public CreateNodeProduct Product {get;set;} = new();
+            public CreateNodeUser User {get;set;} = new();
+        }
+
+        [HttpPost("testCreateNodeUser")]
+        public async Task<IActionResult> testCreateNodeUser([FromBody] CreateNodeUser Node)
+        {
+            var User = new UserNode
+            {
+                Id = Node._id,
+                Name = Node._name ?? string.Empty
+            };
+            await _neo4jService.CreateNodeAsync(User);
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Create item"
+                });
+        }
+        [HttpPost("testCreateNodeProduct")]
+        public async Task<IActionResult> testCreateNodeProduct([FromBody] CreateNodeProduct Node)
+        {
+            var Product = new ProductNode
+            {
+                Id = Node._id,
+                Name = Node._name ?? string.Empty,
+                Tags = Node._tags.Split(' ').ToList()
+            };
+            await _neo4jService.CreateNodeAsync(Product);
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Create item"
+                });
+        }
+        [HttpGet("testGetNodeUser")]
+        public async Task<IActionResult> testGetNodeUser([FromQuery] string id )
+        {
+            var Node = new VoidNode
+            {
+                Id = id,
+            };
+            var rezult =  await _neo4jService.GetNodeAsync(Node);
+
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get item",
+                    data = rezult
+                });
+        }
+        [HttpPost("testUpdateNodeUser")]
+        public async Task<IActionResult> testUpdateNodeUser([FromBody] CreateNodeUser node)
+        {
+            var Node = new VoidNode
+            {
+                Id = node._id,
+                Name = node._name ?? string.Empty
+            };
+            if(await _neo4jService.UpdateNodeAsync(Node))
+            {
+                return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Update item"
+                });
+            }
+
+            return NotFound(new 
+                { 
+                    success = false, 
+                    message = $"Update item not found"
+                });
+        }  
+        [HttpDelete("testUpdateNodeUser")]
+        public async Task<IActionResult> testDeleteNodeUser([FromBody] CreateNodeUser node)
+        {
+            var Node = new VoidNode
+            {
+                Id = node._id
+            };
+            if(await _neo4jService.DeleteNodeAsync(Node))
+            {
+                return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Delete item"
+                });
+            }
+
+            return NotFound(new 
+                { 
+                    success = false, 
+                    message = $"Delete item not found"
+                });
+        }  
+        [HttpGet("testGetTypeWithId")]
+        public async Task<IActionResult> testGetTypeWithId([FromQuery] string id )
+        {
+            
+            var rezult =  await _neo4jService.GetTypeWithId(id);
+
+            if (rezult == -1)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get type with Id",
+                    data = $"{rezult}"
+                });
+        }
+        [HttpPost("testCreateEdgeVieved")]
+        public async Task<IActionResult> testCreateEdge([FromBody] CreatetestCreateEdgeVievedNodeUserDto tempDto)
+        {
+            Console.WriteLine("TEST1728 0");
+            var User = new UserNode
+            {
+                Id = tempDto.User._id,
+                //Name = tempDto.User._name ?? string.Empty
+            };
+            Console.WriteLine("TEST1728 1");
+            var Product = new ProductNode
+            {
+                Id = tempDto.Product._id,
+                /*Name = tempDto.Product._name ?? string.Empty,
+                Tags = tempDto.Product._tags.Split(' ').ToList()*/
+            };
+            Console.WriteLine("TEST1728 2");
+            var edgeV = new ViewedEdge();
+            Console.WriteLine("TEST1728 3");
+
+            await _neo4jService.CreateEdgeAsync<ViewedEdge, UserNode, ProductNode>(User, Product, edgeV);
+            Console.WriteLine("TEST1728 4");
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Create item"
+                });
         }
     }
 }

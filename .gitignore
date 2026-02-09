@@ -33,6 +33,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 pg_data/
+pgdata/
 pgdata_repl/
 prometheus_data/
 redis_data/
@@ -372,3 +373,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+
+grafana_data/
+grafana_data/alerting
