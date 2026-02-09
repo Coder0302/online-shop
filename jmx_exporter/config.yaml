@@ -1,0 +1,9 @@
+username: "neo4j"
+password: "password"
+
+ssl: false
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+rules:
+  - pattern: ".*"
