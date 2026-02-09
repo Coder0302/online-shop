@@ -44,19 +44,39 @@ services:
       - ./dumps:/dumps
     ports:
       - "5434:5432"
+
+#  включить репликацию монго
+#  файл key/mongokey создавать самому, поэтому сначала комментируем строку с командой
+#  потом запускаем контейнер и пишем команды подряд:
+#  openssl rand -base64 741 > /key/mongokey
+#  chmod 400 /key/mongokey
+#  chown mongodb:mongodb /key/mongokey
+#  выходи из контейнера
+#  потом раскоментируем строку с командой, перезапускаем докер
+#  подключаемся черзе компас или docker compose exec mongo mongosh и выполняем(выделять полностью без #):
+#   rs.initiate(
+#   {  
+#   _id : "rs0",
+#   members: [
+# 	  { _id: 0, host: "mongo:27017"},
+#  		{ _id: 1, host: "mongo2:27017"},
+#  	 	{ _id: 2, host: "mongo3:27017"}
+#   	]
+#     }
+#   )
   mongo:
     image: mongo:7
     container_name: mongo
-    restart: unless-stopped
+    restart: always
     ports: [ "27017:27017" ]
-    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
     volumes:
       - ./mongo_data:/data/db
       - ./init:/docker-entrypoint-initdb.d:ro
-      - ./mongo/keystore:/key
+      - ./mongo/keystore/:/key/
       - ./mongo/init:/init
 
   mongo-express:
@@ -105,7 +125,7 @@ services:
   mongo2:
     image: mongo:7
     container_name: mongo2
-    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
       - ./mongo2_data:/data/db
       - ./mongo/keystore:/key
@@ -116,7 +136,7 @@ services:
   mongo3:
     image: mongo:7
     container_name: mongo3
-    # command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
+    command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
       - ./mongo3_data:/data/db
       - ./mongo/keystore:/key
