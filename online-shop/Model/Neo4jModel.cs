@@ -200,7 +200,7 @@ namespace project.Models.Neo4jModels
 
     public abstract class Neo4jNode
     {
-        [JsonPropertyName("id")]
+        [JsonPropertyName("ext_id")]
         required public string Id { get; set; }
         [JsonPropertyName("name")]
         public string? Name { get; set; }
@@ -253,7 +253,6 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name ?? "TEST",
-                ["id"] = Id,
                 ["type"] = (int)Type
             };
         }
@@ -277,7 +276,6 @@ namespace project.Models.Neo4jModels
         {
             return new Dictionary<string, object>
             {
-                ["id"] = Id,
                 ["type"] = (int)Type,
                 ["name"] = Name ?? Id,
                 ["tags"] = Tags,
@@ -303,7 +301,6 @@ namespace project.Models.Neo4jModels
         {
             var props = new Dictionary<string, object>
             {
-                ["id"] = Id,
                 ["type"] = (int)Type,
                 ["name"] = Name ?? Id,
                 ["address"] = Address,

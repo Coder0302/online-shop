@@ -10,7 +10,7 @@ namespace project.Services
     public interface INeo4jService
     {
         Task<int> GetTypeWithId(string nodeId);
-        Task<T> CreateNodeAsync<T>(T node) where T : Neo4jNode;
+        Task<bool> CreateNodeAsync<T>(T node) where T : Neo4jNode;
         Task<Dictionary<string, object>> GetNodeAsync<T>(T node) where T : Neo4jNode;
         Task<bool> UpdateNodeAsync<T>(T node) where T : Neo4jNode;
         Task<bool> DeleteNodeAsync<T>(T node) where T : Neo4jNode;
@@ -53,11 +53,11 @@ namespace project.Services
                 throw new ArgumentNullException(nameof(nodeId));
     
             var query = @"
-                MATCH (n {id: $id})
+                MATCH (n {ext_id: $ext_id})
                 RETURN properties(n) as properties";
             var parameters = new Dictionary<string, object>
             {
-                ["id"] = nodeId
+                ["ext_id"] = nodeId
             };
             await using var session = _context.AsyncSession();
             try
@@ -84,7 +84,7 @@ namespace project.Services
             }
         }
 
-        public async Task<T> CreateNodeAsync<T>(T node) where T : Neo4jNode
+        public async Task<bool> CreateNodeAsync<T>(T node) where T : Neo4jNode
         {
             if(node == null)
                 throw new ArgumentNullException(nameof(node));
@@ -93,27 +93,31 @@ namespace project.Services
 
             var properties = node.ToProperties();
             var query = $@"
-                MERGE (n:{typename} {{id: $id}})
-                SET n = $properties
-                RETURN n.id as id, n.type as type, n";
-            var parameters = new { id = node.Id, properties};
+                MERGE (n:{typename} {{ext_id: $ext_id}})
+                ON CREATE SET n = $createProperties, n.ext_id = $ext_id
+                RETURN 
+                    n.ext_id as ext_id,
+                    n.type as type";
+            var parameters = new Dictionary<string, object> { 
+                ["ext_id"] = node.Id,
+                ["createProperties"] = properties
+            };
             await using var session = _context.AsyncSession();
             try
             {
-                var result = await session.ExecuteWriteAsync(async tx =>
+                await session.ExecuteWriteAsync(async tx =>
                 {
                     var cursor = await tx.RunAsync(query, parameters);
                     var record = await cursor.SingleAsync();
 
-                    node.Id = record["id"].As<string>();
+                    node.Id = record["ext_id"].As<string>();
                     return node;
                 });
-                return result;
+                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error creating node: {ex.Message}");
-                throw;
+                return false;
             }
         }
         public async Task<Dictionary<string, object>> GetNodeAsync<T>(T node) where T : Neo4jNode
@@ -123,11 +127,11 @@ namespace project.Services
 
             string typename = node.GetStringType();
             var query = $@"
-                MATCH (n:{typename} {{id: $id}})
-                RETURN n.id as id, elementId(n) as elementId, properties(n) as properties";
+                MATCH (n:{typename} {{ext_id: $ext_id}})
+                RETURN n.ext_id as ext_id, elementId(n) as elementId, properties(n) as properties";
             var parameters = new Dictionary<string, object>
             {
-                ["id"] = node.Id
+                ["ext_id"] = node.Id
             };
             await using var session = _context.AsyncSession();
             try
@@ -138,7 +142,7 @@ namespace project.Services
             
                     if (await cursor.FetchAsync())
                     {
-                        var id = cursor.Current["id"].As<string>();
+                        var id = cursor.Current["ext_id"].As<string>();
                         var properties = cursor.Current["properties"].As<Dictionary<string, object>>();
                         return properties;
                     }
@@ -155,11 +159,39 @@ namespace project.Services
         }
         public async Task<bool> UpdateNodeAsync<T>(T node) where T : Neo4jNode
         {
-            var properties = GetNodeAsync(node);
-            if(properties == null)
+            if(node == null)
+                throw new ArgumentNullException(nameof(node));
+            
+            string typename = node.GetStringType();
+
+            var properties = node.ToProperties();
+            var query = $@"
+                MERGE (n:{typename} {{ext_id: $ext_id}})
+                ON MATCH SET n += $updateProperties
+                RETURN 
+                    n.ext_id as ext_id,
+                    n.type as type";
+            var parameters = new Dictionary<string, object> { 
+                ["ext_id"] = node.Id,
+                ["updateProperties"] = properties
+            };
+            await using var session = _context.AsyncSession();
+            try
+            {
+                await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var record = await cursor.SingleAsync();
+
+                    node.Id = record["ext_id"].As<string>();
+                    return node;
+                });
+                return true;
+            }
+            catch (Exception ex)
+            {
                 return false;
-            await CreateNodeAsync(node);
-            return true;
+            }
         }
         public async Task<bool> DeleteNodeAsync<T>(T node) where T : Neo4jNode
         {
@@ -167,13 +199,13 @@ namespace project.Services
                 throw new ArgumentNullException(nameof(node));
             string typename = node.GetStringType();
             var query = $@"
-                MATCH (n:{typename} {{id: $id}})
+                MATCH (n:{typename} {{ext_id: $ext_id}})
                 DETACH DELETE n
                 RETURN COUNT(n) as deletedCount";
 
             var parameters = new Dictionary<string, object>
             {
-                ["id"] = node.Id
+                ["ext_id"] = node.Id
             };
 
             await using var session = _context.AsyncSession();
@@ -189,7 +221,6 @@ namespace project.Services
         
         public async Task<TRel> CreateEdgeAsync<TRel, T, Y>(T nodeSrc, Y nodeDst, TRel edge) where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode
         {
-            Console.WriteLine($"start CreateEdgeAsync");
             if(nodeSrc == null || nodeDst == null)
                 throw new ArgumentNullException(nameof(nodeSrc));
             if(edge == null)
@@ -199,26 +230,22 @@ namespace project.Services
                 Console.WriteLine("invalid edge src dst");
                 return null;
             }
-            Console.WriteLine($"point 0");
             var properties = edge.ToProperties();
             string relationshipType = edge.Name;
             string srcNodeType = nodeSrc.GetStringType();
             string dstNodeType = nodeDst.GetStringType();
             var query = $@"
-                MATCH (a:{srcNodeType} {{id: $srcId}})
-                MATCH (b:{dstNodeType} {{id: $dstId}})
-                CREATE (a)-[r:{relationshipType} {{type: $edgeTypeCode}}]->(b)
+                MATCH (a:{srcNodeType} {{ext_id: $srcId}})
+                MATCH (b:{dstNodeType} {{ext_id: $dstId}})
+                MERGE (a)-[r:{relationshipType}]->(b)
                 SET r+= $properties
                 RETURN r, elementId(r) as elementId";
-            Console.WriteLine($"point 1");
             var parameters = new Dictionary<string, object>
             {
                 ["srcId"] = nodeSrc.Id,
                 ["dstId"] = nodeDst.Id,
-                ["edgeTypeCode"] = (int)edge.Type,
                 ["properties"] = properties
             };
-            Console.WriteLine($"point 2");
             await using var session = _context.AsyncSession();
             try
             {

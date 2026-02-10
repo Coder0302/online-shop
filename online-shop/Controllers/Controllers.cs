@@ -241,8 +241,8 @@ namespace ECommerce.Controller {
         }
         public class CreatetestCreateEdgeVievedNodeUserDto
         {
-            public CreateNodeProduct Product {get;set;} = new();
-            public CreateNodeUser User {get;set;} = new();
+            public string _id_User {get;set;} = string.Empty;
+            public string _id_product {get;set;} = string.Empty;
         }
 
         [HttpPost("testCreateNodeUser")]
@@ -371,25 +371,17 @@ namespace ECommerce.Controller {
         [HttpPost("testCreateEdgeVieved")]
         public async Task<IActionResult> testCreateEdge([FromBody] CreatetestCreateEdgeVievedNodeUserDto tempDto)
         {
-            Console.WriteLine("TEST1728 0");
             var User = new UserNode
             {
-                Id = tempDto.User._id,
-                //Name = tempDto.User._name ?? string.Empty
+                Id = tempDto._id_User
             };
-            Console.WriteLine("TEST1728 1");
             var Product = new ProductNode
             {
-                Id = tempDto.Product._id,
-                /*Name = tempDto.Product._name ?? string.Empty,
-                Tags = tempDto.Product._tags.Split(' ').ToList()*/
+                Id = tempDto._id_product
             };
-            Console.WriteLine("TEST1728 2");
             var edgeV = new ViewedEdge();
-            Console.WriteLine("TEST1728 3");
 
             await _neo4jService.CreateEdgeAsync<ViewedEdge, UserNode, ProductNode>(User, Product, edgeV);
-            Console.WriteLine("TEST1728 4");
             return Ok(new 
                 { 
                     success = true, 
