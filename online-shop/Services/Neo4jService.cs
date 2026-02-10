@@ -17,8 +17,8 @@ namespace project.Services
         
         Task<TRel> CreateEdgeAsync<TRel, T, Y>(T srcNode, Y dstNode, TRel Edge) 
             where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
-        Task<List<TRel>> GetEdgesAsync<TRel>(string nodeId) where TRel : Neo4jEdge;
-        Task<bool> DeleteEdgeAsync(string EdgeId);
+        Task<List<TRel>> GetEdgesAsync<TRel, T, Y>(T NodeSrc, Y NodeDst) where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
+        Task<bool> DeleteEdgeAsync<TRel, T, Y>(TRel Edge, T NodeSrc, Y NodeDst) where TRel: Neo4jEdge where T:Neo4jNode where Y:Neo4jNode;
         
         Task<List<T>> GetNodesByTypeAsync<T>() where T : Neo4jNode;
         Task<QueryResult> ExecuteCypherAsync(string query, object parameters = null);
@@ -62,7 +62,7 @@ namespace project.Services
             await using var session = _context.AsyncSession();
             try
             {
-                var rezult = await session.ExecuteReadAsync(async tx =>
+                var result = await session.ExecuteReadAsync(async tx =>
                 {
                     var cursor = await tx.RunAsync(query, parameters);
             
@@ -73,9 +73,9 @@ namespace project.Services
                     }
                     return null;
                 });
-                if(rezult == null)
+                if(result == null)
                     return -1;
-                return Convert.ToInt32(rezult["type"]);
+                return Convert.ToInt32(result["type"]);
             }
             catch (Exception ex)
             {
@@ -249,7 +249,7 @@ namespace project.Services
             await using var session = _context.AsyncSession();
             try
             {
-                var rezult = await session.ExecuteWriteAsync(async tx =>
+                var result = await session.ExecuteWriteAsync(async tx =>
                 {
                     var cursor = await tx.RunAsync(query, parameters);
                     var record = await cursor.SingleAsync();
@@ -258,7 +258,7 @@ namespace project.Services
                     
                     return edge;
                 });
-                return rezult;
+                return result;
             }
             catch(Exception ex)
             {
@@ -267,15 +267,132 @@ namespace project.Services
                 throw;
             }
         }
-        public async Task<List<TRel>> GetEdgesAsync<TRel>(string nodeId) where TRel : Neo4jEdge
+        public async Task<List<TRel>> GetEdgesAsync<TRel, T, Y>(T NodeSrc, Y NodeDst) 
+            where TRel : Neo4jEdge 
+            where T : Neo4jNode 
+            where Y : Neo4jNode
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (NodeSrc == null || NodeDst == null)
+                throw new ArgumentNullException();
+
+            var edgeInstance = Activator.CreateInstance<TRel>();
+            var relationshipType = edgeInstance.Name;
+
+            string srcNodeType = NodeSrc.GetStringType();
+            string dstNodeType = NodeDst.GetStringType();
+
+            var query = $@"
+                MATCH (a:{srcNodeType} {{ext_id: $srcId}})-[r:{relationshipType}]->(b:{dstNodeType} {{ext_id: $dstId}})
+                RETURN 
+                    elementId(r) as elementId,
+                    type(r) as relationshipType,
+                    properties(r) as properties,
+                    a.ext_id as srcId,
+                    b.ext_id as dstId
+                ORDER BY r.date DESC";
+            
+            var parameters = new Dictionary<string, object>
+            {
+                ["srcId"] = NodeSrc.Id,
+                ["dstId"] = NodeDst.Id
+            };
+            
+            await using var session = _context.AsyncSession();
+            
+            try
+            {
+                var edges = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<TRel>();
+                    
+                    while (await cursor.FetchAsync())
+                    {
+                        var edge = Activator.CreateInstance<TRel>();
+                        var properties = cursor.Current["properties"].As<Dictionary<string, object>>();
+                        
+                        edge.Name = cursor.Current["relationshipType"].As<string>();
+                        
+                        if (properties.ContainsKey("date") && properties["date"] is DateTime date)
+                        {
+                            edge.Date = date;
+                        }
+                        
+                        if (edge is PurchasedEdge purchasedEdge && properties.ContainsKey("rating"))
+                        {
+                            purchasedEdge.Rating = Convert.ToInt32(properties["rating"]);
+                        }
+                        else if (edge is QuantityEdge quantityEdge && properties.ContainsKey("quantity"))
+                        {
+                            quantityEdge.Quantity = Convert.ToInt32(properties["quantity"]);
+                        }
+                        else if (edge is PurchasedEdge && properties.ContainsKey("edgeCode"))
+                        {
+                            var edgeCode = Convert.ToInt32(properties["edgeCode"]);
+                        }
+                        
+                        results.Add(edge);
+                    }
+                    
+                    return results;
+                });
+                
+                return edges;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting edges: {ex.Message}");
+                Console.WriteLine($"Query: {query}");
+                throw;
+            }
         }
-        public async Task<bool> DeleteEdgeAsync(string EdgeId)
+        public async Task<bool> DeleteEdgeAsync<TRel, T, Y>(TRel Edge, T NodeSrc, Y NodeDst) where TRel:Neo4jEdge where T: Neo4jNode where Y: Neo4jNode
         {
-            Console.WriteLine("TEST1728");
-            return true;
+            if (NodeSrc == null || NodeDst == null)
+                throw new ArgumentNullException();
+            
+            string srcNodeType = NodeSrc.GetStringType();
+            string dstNodeType = NodeDst.GetStringType();
+
+            string relationshipType;
+            if(Edge == null)
+                relationshipType = "[r]";
+            else
+                relationshipType = $"[r: {Edge.Name}]";
+            
+            var query = $@"
+                MATCH (a:{srcNodeType} {{ext_id: $srcId}})-{relationshipType}->(b:{dstNodeType} {{ext_id: $dstId}})
+                DELETE r
+                RETURN COUNT(r) as deletedCount";
+            
+            var parameters = new Dictionary<string, object>
+            {
+                ["srcId"] = NodeSrc.Id,
+                ["dstId"] = NodeDst.Id
+            };
+            
+            await using var session = _context.AsyncSession();
+            
+            try
+            {
+                var result = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var record = await cursor.SingleAsync();
+                    var deletedCount = record["deletedCount"].As<int>();
+                    
+                    Console.WriteLine($"Deleted {deletedCount} edge(s) between {NodeSrc.Id} and {NodeDst.Id}");
+                    return deletedCount > 0;
+                });
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting edge: {ex.Message}");
+                Console.WriteLine($"Query: {query}");
+                throw;
+            }
         }
         
         public async Task<List<T>> GetNodesByTypeAsync<T>() where T : Neo4jNode

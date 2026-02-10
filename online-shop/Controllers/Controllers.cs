@@ -388,5 +388,45 @@ namespace ECommerce.Controller {
                     message = $"Create item"
                 });
         }
+        [HttpPost("testGetEdgeVieved")]
+        public async Task<IActionResult> testGetEdge([FromBody] CreatetestCreateEdgeVievedNodeUserDto tempDto)
+        {
+            var User = new UserNode
+            {
+                Id = tempDto._id_User
+            };
+            var Product = new ProductNode
+            {
+                Id = tempDto._id_product
+            };
+            var edgeV = new ViewedEdge();
+
+            var rezult = await _neo4jService.GetEdgesAsync<ViewedEdge, UserNode, ProductNode>(User, Product);
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = rezult
+                });
+        }
+        [HttpPost("testDeleteEdgeVieved")]
+        public async Task<IActionResult> testDeleteEdge([FromBody] CreatetestCreateEdgeVievedNodeUserDto tempDto)
+        {
+            var User = new UserNode
+            {
+                Id = tempDto._id_User
+            };
+            var Product = new ProductNode
+            {
+                Id = tempDto._id_product
+            };
+            var edgeV = new ViewedEdge();
+
+            var rezult = await _neo4jService.DeleteEdgeAsync<ViewedEdge, UserNode, ProductNode>(null, User, Product);
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = rezult
+                });
+        }
     }
 }
