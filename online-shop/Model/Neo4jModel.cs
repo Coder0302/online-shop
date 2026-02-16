@@ -211,6 +211,23 @@ namespace project.Models.Neo4jModels
         public abstract Dictionary<string, object> ToProperties();
     }
 
+    public class Neo4jEdgeFactory
+    {
+        public Neo4jEdge CreateEdgeByStringType(string type)
+        {
+            return type switch
+            {
+                "SHOWN" => new ShownEdge(),
+                "VIEWED" => new ViewedEdge(),
+                "LIKED" => new LikedEdge(),
+                "PURCHASED" => new PurchasedEdge(),
+                "BOUGHT_TOGETHER" => new BoughtTogetherEdge(),
+                "VISITED" => new VisitedEdge(),
+                "QUANTITY" => new QuantityEdge()
+            };
+        }
+    }
+
     public static class Neo4jExtensions
     {
         public static string GetStringType(this Neo4jNode node)

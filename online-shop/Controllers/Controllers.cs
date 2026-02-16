@@ -224,6 +224,11 @@ namespace ECommerce.Controller {
                 });
             }
         }
+        public class UserCommonResult
+        {
+            public UserNode User { get; set; }
+            public int CommonCount { get; set; }
+        }
         public class CreateItemRequest
         {
             public string Name { get; set; } = string.Empty;
@@ -260,6 +265,37 @@ namespace ECommerce.Controller {
             public double visitedProb {get;set;} = 0.35;
             public double quantityProb {get;set;} = 0.35;
             public double shownProb {get;set;} = 0.35;
+        }
+
+        public class DtoUserMinMaxDepth
+        {
+            public string UserId {get;set;} = string.Empty;
+            public int MinDepth {get;set;}
+            public int maxDepth {get;set;}
+        }
+        public class DtoUserUserMaxDepth
+        {
+            public string UserId1 {get;set;} = string.Empty;
+            public string UserId2 {get;set;} = string.Empty;
+            public int maxDepth {get;set;}
+        }
+        public class DtoUserLimit
+        {
+            public string UserId {get;set;} = string.Empty;
+            public int limit {get;set;}
+            public string edgetype {get;set;} = string.Empty;
+        }
+
+        public class ProductCountResult
+        {
+            public ProductNode Product { get; set; }
+            public int Count { get; set; }
+        }
+        public class ProductTagStatistik
+        {
+            public string Tag { get; set; }
+            public int ProductCount { get; set; }
+            public int TotalViews { get; set; }
         }
 
         [HttpPost("testCreateNodeUser")]
@@ -573,6 +609,134 @@ namespace ECommerce.Controller {
                 {
                     success = false,
                     message = $"User with '{productid}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetConnectedUsers")]
+        public async Task<IActionResult> GetConnectedUsers([FromQuery] DtoUserMinMaxDepth dto )
+        {
+            var user = new UserNode{Id = dto.UserId};
+            var rezult = await _neo4jService.GetConnectedUsersAsync(user, dto.MinDepth, dto.maxDepth);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{user.Id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetUserConnectionsWithDepth")]
+        public async Task<IActionResult> GetUserConnectionsWithDepth([FromQuery] DtoUserMinMaxDepth dto )
+        {
+            var user = new UserNode{Id = dto.UserId};
+            var rezult = await _neo4jService.GetUserConnectionsWithDepthAsync(user, dto.maxDepth, dto.MinDepth);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{user.Id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("FindPathBetweenUsers")]
+        public async Task<IActionResult> FindPathBetweenUsers([FromQuery] DtoUserUserMaxDepth dto )
+        {
+            var user1 = new UserNode{Id = dto.UserId1};
+            var user2 = new UserNode{Id = dto.UserId2};
+            var rezult = await _neo4jService.FindPathBetweenUsersAsync(user1, user2, dto.maxDepth);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{user1.Id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+
+        [HttpGet("GetUsersWithCommonEdge")]
+        public async Task<IActionResult> GetUsersWithCommonEdge([FromQuery] DtoUserLimit dto)
+        {
+            var user = new UserNode{Id = dto.UserId};
+            var fartory = new Neo4jEdgeFactory();
+            var edge = fartory.CreateEdgeByStringType(dto.edgetype);
+            var rezult = await _neo4jService.GetUsersWithCommonEdgeAsync(user, edge, dto.limit);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{user.Id}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetTopProducts")]
+        public async Task<IActionResult> GetTopProducts([FromQuery] string edgetype)
+        {
+            var rezult = await _neo4jService.GetTopProductsAsync(edgetype);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetTagStatistics")]
+        public async Task<IActionResult> GetTagStatistics()
+        {
+            var rezult = await _neo4jService.GetTagStatisticsAsync();
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"not found"
                 });
             }
            

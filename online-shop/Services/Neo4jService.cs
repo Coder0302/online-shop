@@ -5,6 +5,22 @@ using System.Data;
 using DnsClient.Protocol;
 using System.Text.Json;
 
+public class UserCommonResult
+{
+    public UserNode User { get; set; }
+    public int CommonCount { get; set; }
+}
+public class ProductCountResult
+{
+    public ProductNode Product { get; set; }
+    public int count { get; set; }
+}
+public class ProductTagStatistik
+{
+    public string Tag { get; set; }
+    public int ProductCount { get; set; }
+    public int TotalViews { get; set; }
+}
 namespace project.Services
 {
     public interface INeo4jService
@@ -34,8 +50,13 @@ namespace project.Services
         Task<List<UserNode>> GetUsersWhoLikedProductAsync(ProductNode product);
         Task<List<ProductNode>> GetRecommendedProductsbyUserAsync(UserNode user);
         Task<List<ProductNode>> GetRecommendedProductsbyProductAsync(ProductNode Product);
-        Task<Dictionary<string, int>> GetProductAvailabilityInStoresAsync(string productId);
         Task<bool> ClearDatabaseAsync();
+        Task<List<UserNode>> GetConnectedUsersAsync(UserNode user, int minDepth = 2, int maxDepth = 4);
+        Task<List<Dictionary<string, object>>> FindPathBetweenUsersAsync(UserNode user1, UserNode user2, int maxDepth = 5);
+        Task<List<Dictionary<string, object>>> GetUserConnectionsWithDepthAsync(UserNode user, int maxDepth = 4, int minDepth = 1);
+        Task<List<UserCommonResult>> GetUsersWithCommonEdgeAsync(UserNode user, Neo4jEdge edge, int limit = 20);
+        Task<List<ProductCountResult>> GetTopProductsAsync(string edgetype, int limit = 10);
+        Task<List<ProductTagStatistik>> GetTagStatisticsAsync();
     }
     public class Neo4jService : INeo4jService
     {
@@ -882,10 +903,361 @@ namespace project.Services
                 throw;
             }
         }
-        public async Task<Dictionary<string, int>> GetProductAvailabilityInStoresAsync(string productId)
+        public async Task<List<UserNode>> GetConnectedUsersAsync(UserNode user, int minDepth = 2, int maxDepth = 4)
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            var query = @$"
+                MATCH path = (u1:User {{ext_id: $userId}})-[*{minDepth}..{maxDepth}]-(u2:User)
+                WHERE u1.ext_id <> u2.ext_id
+                AND ALL(rel IN relationships(path) WHERE type(rel) IN ['VIEWED', 'LIKED', 'PURCHASED'])
+                RETURN 
+                    u2.ext_id as ext_id,
+                    u2.name as name,
+                    u2.type as type,
+                    length(path) as depth
+                ORDER BY depth
+                LIMIT 50";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId"] = user.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var users = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<UserNode>();
+                    var seenIds = new HashSet<string>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var userId = cursor.Current["ext_id"].As<string>();
+                        
+                        if (!seenIds.Contains(userId))
+                        {
+                            seenIds.Add(userId);
+                            
+                            var connectedUser = new UserNode
+                            {
+                                Id = userId,
+                                Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                            };
+                            
+                            results.Add(connectedUser); 
+                        }
+                    }
+
+                    return results;
+                });
+
+                return users;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting connected users for {user.Id}: {ex.Message}");
+                throw;
+            }
+        }
+        public async Task<List<Dictionary<string, object>>> FindPathBetweenUsersAsync(
+            UserNode user1, UserNode user2, int maxDepth = 5)
+        {
+            if (user1 == null || user2 == null)
+                throw new ArgumentNullException();
+
+            var query = @$"
+                MATCH path = shortestPath(
+                    (u1:User {{ext_id: $userId1}})-[*1..{maxDepth}]-(u2:User {{ext_id: $userId2}})
+                )
+                RETURN 
+                    length(path) as pathLength,
+                    [node IN nodes(path) | 
+                        {{
+                            id: node.ext_id,
+                            type: labels(node)[0],
+                            name: node.name
+                        }}
+                    ] as nodes,
+                    [rel IN relationships(path) | 
+                        {{
+                            type: type(rel),
+                            properties: properties(rel)
+                        }}
+                    ] as relationships,
+                    path";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId1"] = user1.Id,
+                ["userId2"] = user2.Id,
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var paths = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<Dictionary<string, object>>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var result = new Dictionary<string, object>
+                        {
+                            ["pathLength"] = cursor.Current["pathLength"].As<int>(),
+                            ["nodes"] = cursor.Current["nodes"].As<List<object>>(),
+                            ["relationships"] = cursor.Current["relationships"].As<List<object>>()
+                        };
+                        results.Add(result);
+                    }
+
+                    return results;
+                });
+
+                return paths;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error finding path between {user1.Id} and {user2.Id}: {ex.Message}");
+                throw;
+            }
+        }
+        public async Task<List<Dictionary<string, object>>> GetUserConnectionsWithDepthAsync(
+            UserNode user, int maxDepth = 4, int minDepth = 1)
+        {
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            var query = @$"
+                MATCH path = (u:User {{ext_id: $userId}})-[*{minDepth}..{maxDepth}]-(connected:User)
+                WHERE u <> connected
+                RETURN 
+                    connected.ext_id as userId,
+                    connected.name as userName,
+                    length(path) as depth,
+                    [rel IN relationships(path) | type(rel)] as connectionTypes,
+                    [node IN nodes(path)[1..-1] | node.ext_id] as intermediateNodes,
+                    length(path) as pathLength
+                ORDER BY depth, connected.ext_id
+                LIMIT 100";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId"] = user.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var connections = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<Dictionary<string, object>>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var connection = new Dictionary<string, object>
+                        {
+                            ["userId"] = cursor.Current["userId"].As<string>(),
+                            ["userName"] = cursor.Current["userName"]?.As<string>() ?? string.Empty,
+                            ["depth"] = cursor.Current["depth"].As<int>(),
+                            ["connectionTypes"] = cursor.Current["connectionTypes"].As<List<object>>(),
+                            ["intermediateNodes"] = cursor.Current["intermediateNodes"].As<List<object>>()
+                        };
+                        results.Add(connection);
+                    }
+
+                    return results;
+                });
+
+                return connections;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting connections with depth for {user.Id}: {ex.Message}");
+                throw;
+            }
+        }
+        
+        public async Task<List<UserCommonResult>>  GetUsersWithCommonEdgeAsync(
+            UserNode user, Neo4jEdge edge, int limit = 20)
+        {
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            string targetNodeType = edge.TypeNodeDst == TypeNode.PRODUCT ? "Product" : "Store";
+            var query = @$"
+                MATCH (u:User {{ext_id: $userId}})-[:{edge.Name}]->(p:{targetNodeType})
+                
+                MATCH (p)<-[:{edge.Name}]-(other:User)
+                WHERE other.ext_id <> $userId
+                
+                WITH other, COUNT(DISTINCT p) as commonCount
+                
+                RETURN 
+                    other.ext_id as ext_id,
+                    other.name as name,
+                    other.type as type,
+                    commonCount
+                ORDER BY commonCount DESC
+                LIMIT $limit";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId"] = user.Id,
+                ["limit"] = limit
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var result = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<UserCommonResult>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var otherUser = new UserNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+                        
+                        var commonCount = cursor.Current["commonCount"].As<int>();
+                        
+                        results.Add(new UserCommonResult
+                        {
+                            User = otherUser,
+                            CommonCount = commonCount
+                        });
+                    }
+
+                    return results;
+                });
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting users with common edge for {user.Id}: {ex.Message}");
+                throw;
+            }
+        }
+        public async Task<List<ProductCountResult>> GetTopProductsAsync(string typeEdge, int limit = 10)
+        {
+            var query = @$"
+                MATCH (p:Product)<-[r:{typeEdge}]-(:User)
+                RETURN 
+                    p.ext_id as ext_id,
+                    p.name as name,
+                    p.tags as tags,
+                    p.createdAt as createdAt,
+                    COUNT(r) as Count
+                ORDER BY Count DESC
+                LIMIT $limit";
+
+            var parameters = new Dictionary<string, object> { ["limit"] = limit };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var result = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<ProductCountResult>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var product = new ProductNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+
+                        if (cursor.Current["tags"] is List<object> tagList)
+                        {
+                            product.Tags = tagList.Select(t => t.ToString()).ToList();
+                        }
+
+                        if (cursor.Current["createdAt"] is DateTime createdAt)
+                        {
+                            product.CreatedAt = createdAt;
+                        }
+
+                        var Count = cursor.Current["Count"].As<int>();
+                        results.Add(new ProductCountResult
+                        {
+                            Product = product,
+                            count = Count
+                        });
+                    }
+
+                    return results;
+                });
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting top viewed products: {ex.Message}");
+                throw;
+            }
+        }
+        public async Task<List<ProductTagStatistik>> GetTagStatisticsAsync()
+        {
+            var query = @"
+                MATCH (p:Product)
+                UNWIND p.tags as tag
+                OPTIONAL MATCH (p)<-[r:VIEWED]-()
+                RETURN 
+                    tag,
+                    COUNT(DISTINCT p) as productCount,
+                    COUNT(r) as totalViews
+                ORDER BY productCount DESC, totalViews DESC";
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var result = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query);
+                    var results = new List<ProductTagStatistik>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var tag = cursor.Current["tag"].As<string>();
+                        var productCount = cursor.Current["productCount"].As<int>();
+                        var totalViews = cursor.Current["totalViews"].As<int>();
+                        
+                        results.Add(new ProductTagStatistik
+                        {
+                            Tag = tag,
+                            ProductCount = productCount,
+                            TotalViews = totalViews
+                        });
+                    }
+
+                    return results;
+                });
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting tag statistics: {ex.Message}");
+                throw;
+            }
         }
     }
 }
