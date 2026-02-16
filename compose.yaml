@@ -33,7 +33,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - ./pg/pgdata:/var/lib/postgresql/data
 
   pg_repl:
     image: postgres:16
@@ -49,7 +49,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - ./pgdata_repl:/var/lib/postgresql/data
+      - ./pg/pgdata_repl:/var/lib/postgresql/data
     depends_on:
       - db
 
@@ -62,7 +62,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ./dumps:/dumps
+      - ./pg/dumps:/dumps
     ports:
       - "5434:5432"
 
@@ -95,10 +95,16 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
     volumes:
+<<<<<<< HEAD
       - ./mongo_data:/data/db
       - ./init:/docker-entrypoint-initdb.d:ro
       - ./mongo/keystore/:/key/
       - ./mongo/init:/init
+=======
+      - ./mongo/mongo_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
+      - ./mongo/mongo/init:/init
+>>>>>>> 0394985 (New code)
 
   mongo-express:
     image: mongo-express:1.0.2-20
@@ -148,8 +154,8 @@ services:
     container_name: mongo2
     command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
-      - ./mongo2_data:/data/db
-      - ./mongo/keystore:/key
+      - ./mongo/mongo2_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
     ports:
       - "27018:27017"
       - "27020:27020"
@@ -159,8 +165,8 @@ services:
     container_name: mongo3
     command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
-      - ./mongo3_data:/data/db
-      - ./mongo/keystore:/key
+      - ./mongo/mongo3_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
     ports:
       - "27019:27017"
       - "27021:27021"
@@ -191,8 +197,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.2
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus_data:/prometheus
+      - ./prom/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prom/prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
