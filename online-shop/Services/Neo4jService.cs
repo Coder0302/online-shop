@@ -15,20 +15,27 @@ namespace project.Services
         Task<bool> UpdateNodeAsync<T>(T node) where T : Neo4jNode;
         Task<bool> DeleteNodeAsync<T>(T node) where T : Neo4jNode;
         
-        Task<TRel> CreateEdgeAsync<TRel, T, Y>(T srcNode, Y dstNode, TRel Edge) 
-            where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
-        Task<List<TRel>> GetEdgesAsync<TRel, T, Y>(T NodeSrc, Y NodeDst) where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
-        Task<bool> DeleteEdgeAsync<TRel, T, Y>(TRel Edge, T NodeSrc, Y NodeDst) where TRel: Neo4jEdge where T:Neo4jNode where Y:Neo4jNode;
+        Task<E> CreateEdgeAsync<E, T, Y>(T srcNode, Y dstNode, E Edge) 
+            where E : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
+        Task<List<E>> GetEdgesAsync<E, T, Y>(T NodeSrc, Y NodeDst) where E : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode;
+        Task<bool> DeleteEdgeAsync<E, T, Y>(E Edge, T NodeSrc, Y NodeDst) where E: Neo4jEdge where T:Neo4jNode where Y:Neo4jNode;
         
-        Task<List<T>> GetNodesByTypeAsync<T>() where T : Neo4jNode;
+        Task<List<T>> GetNodesByTypeAsync<T>(string nodetype) where T : Neo4jNode;
         Task<QueryResult> ExecuteCypherAsync(string query, object parameters = null);
         
-        Task SeedTestDataAsync(int users = 30, int products = 50, int stores = 10);
-        Task<List<ProductNode>> GetViewedProductsByUserAsync(string userId);
-        Task<List<UserNode>> GetUsersWhoLikedProductAsync(string productId);
-        Task<List<ProductNode>> GetRecommendedProductsAsync(string userId);
-        Task<List<ProductNode>> GetBoughtTogetherProductsAsync(string productId);
+        Task SeedTestDataAsync(
+            int users = 30, int products = 50, int stores = 10,
+            double viewedProb = 0.35, double likedProb = 0.35,
+            double purchasedProb = 0.35, double boughtTogetherProb = 0.35,
+            double visitedProb = 0.35, double quantityProb = 0.35,
+            double shownProb = 0.35
+            );
+        Task<List<ProductNode>> GetViewedProductsByUserAsync(UserNode user);
+        Task<List<UserNode>> GetUsersWhoLikedProductAsync(ProductNode product);
+        Task<List<ProductNode>> GetRecommendedProductsbyUserAsync(UserNode user);
+        Task<List<ProductNode>> GetRecommendedProductsbyProductAsync(ProductNode Product);
         Task<Dictionary<string, int>> GetProductAvailabilityInStoresAsync(string productId);
+        Task<bool> ClearDatabaseAsync();
     }
     public class Neo4jService : INeo4jService
     {
@@ -219,7 +226,7 @@ namespace project.Services
             return result;
         }
         
-        public async Task<TRel> CreateEdgeAsync<TRel, T, Y>(T nodeSrc, Y nodeDst, TRel edge) where TRel : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode
+        public async Task<E> CreateEdgeAsync<E, T, Y>(T nodeSrc, Y nodeDst, E edge) where E : Neo4jEdge where T : Neo4jNode where Y : Neo4jNode
         {
             if(nodeSrc == null || nodeDst == null)
                 throw new ArgumentNullException(nameof(nodeSrc));
@@ -267,15 +274,15 @@ namespace project.Services
                 throw;
             }
         }
-        public async Task<List<TRel>> GetEdgesAsync<TRel, T, Y>(T NodeSrc, Y NodeDst) 
-            where TRel : Neo4jEdge 
+        public async Task<List<E>> GetEdgesAsync<E, T, Y>(T NodeSrc, Y NodeDst) 
+            where E : Neo4jEdge 
             where T : Neo4jNode 
             where Y : Neo4jNode
         {
             if (NodeSrc == null || NodeDst == null)
                 throw new ArgumentNullException();
 
-            var edgeInstance = Activator.CreateInstance<TRel>();
+            var edgeInstance = Activator.CreateInstance<E>();
             var relationshipType = edgeInstance.Name;
 
             string srcNodeType = NodeSrc.GetStringType();
@@ -304,11 +311,11 @@ namespace project.Services
                 var edges = await session.ExecuteReadAsync(async tx =>
                 {
                     var cursor = await tx.RunAsync(query, parameters);
-                    var results = new List<TRel>();
+                    var results = new List<E>();
                     
                     while (await cursor.FetchAsync())
                     {
-                        var edge = Activator.CreateInstance<TRel>();
+                        var edge = Activator.CreateInstance<E>();
                         var properties = cursor.Current["properties"].As<Dictionary<string, object>>();
                         
                         edge.Name = cursor.Current["relationshipType"].As<string>();
@@ -346,7 +353,7 @@ namespace project.Services
                 throw;
             }
         }
-        public async Task<bool> DeleteEdgeAsync<TRel, T, Y>(TRel Edge, T NodeSrc, Y NodeDst) where TRel:Neo4jEdge where T: Neo4jNode where Y: Neo4jNode
+        public async Task<bool> DeleteEdgeAsync<E, T, Y>(E Edge, T NodeSrc, Y NodeDst) where E:Neo4jEdge where T: Neo4jNode where Y: Neo4jNode
         {
             if (NodeSrc == null || NodeDst == null)
                 throw new ArgumentNullException();
@@ -394,11 +401,99 @@ namespace project.Services
                 throw;
             }
         }
-        
-        public async Task<List<T>> GetNodesByTypeAsync<T>() where T : Neo4jNode
+        public async Task<bool> ClearDatabaseAsync()
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            var query = @"
+                MATCH (n)
+                DETACH DELETE n
+                RETURN COUNT(n) as deletedCount";
+            
+            await using var session = _context.AsyncSession();
+            
+            try
+            {
+                var result = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query);
+                    var record = await cursor.SingleAsync();
+                    var deletedCount = record["deletedCount"].As<int>();
+                    
+                    Console.WriteLine($"Database cleared: {deletedCount} nodes deleted");
+                    return true;
+                });
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing database: {ex.Message}");
+                throw;
+            }
+        }
+        public async Task<List<T>> GetNodesByTypeAsync<T>(string nodetype) where T : Neo4jNode
+        {
+            var query = $@"
+            MATCH (n:{nodetype})
+            RETURN 
+                n.ext_id as ext_id,
+                n.type as type,
+                n.name as name,
+                properties(n) as properties
+            ORDER BY n.ext_id";
+
+            await using var session = _context.AsyncSession();
+            try
+            {
+                var nodes = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query);
+                    var results = new List<T>();
+                    
+                    while (await cursor.FetchAsync())
+                    {
+                        var node = Activator.CreateInstance<T>();
+                        var properties = cursor.Current["properties"].As<Dictionary<string, object>>();
+                        
+                        node.Id = cursor.Current["ext_id"].As<string>();
+                        
+                        if (properties.ContainsKey("name"))
+                            node.Name = properties["name"]?.ToString();
+                        
+                        if (node is ProductNode productNode)
+                        {
+                            if (properties.ContainsKey("tags") && properties["tags"] is List<object> tagList)
+                            {
+                                productNode.Tags = tagList.Select(t => t.ToString()).ToList();
+                            }
+                            if (properties.ContainsKey("createdAt") && properties["createdAt"] is DateTime createdAt)
+                            {
+                                productNode.CreatedAt = createdAt;
+                            }
+                        }
+                        else if (node is StoreNode storeNode)
+                        {
+                            if (properties.ContainsKey("address"))
+                                storeNode.Address = properties["address"]?.ToString() ?? string.Empty;
+                            if (properties.ContainsKey("capacity") && properties["capacity"] is long capacity)
+                            {
+                                storeNode.Capacity = (int)capacity;
+                            }
+                        }
+                        
+                        results.Add(node);
+                    }
+                    
+                    return results;
+                });
+                
+                return nodes;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting nodes of type {typeof(T).Name}: {ex.Message}");
+                throw;
+            }
+
         }
         public async Task<QueryResult> ExecuteCypherAsync(string query, object parameters = null)
         {
@@ -406,29 +501,386 @@ namespace project.Services
             return null;
         }
         
-        public async Task SeedTestDataAsync(int users = 30, int products = 50, int stores = 10)
+        public async Task SeedTestDataAsync(
+            int userCount = 30, int productCount = 50, int storeCount = 10,
+            double viewedProb = 0.35, double likedProb = 0.35,
+            double purchasedProb = 0.35, double boughtTogetherProb = 0.45,
+            double visitedProb = 0.35, double quantityProb = 0.35,
+            double shownProb = 0.35
+            )
         {
-            Console.WriteLine("TEST1728");
+            ClearDatabaseAsync();
+            var random = new Random();
+            var list_users = new List<UserNode>();
+            var list_products = new List<ProductNode>();
+            var list_stores = new List<StoreNode>();
+ 
+            for (int i = 1; i <= userCount; i++)
+            {
+                var user = new UserNode
+                {
+                    Id = $"user_{i:D3}",
+                    Name = $"User {i}"
+                };
+                await CreateNodeAsync(user);
+                list_users.Add(user);
+            }
+            
+            var tags = new[] { "electronics", "clothing", "books", "food", "sports", "toys", "beauty", "home" };
+            for (int i = 1; i <= productCount; i++)
+            {
+                var product = new ProductNode
+                {
+                    Id = $"product_{i:D3}",
+                    Name = $"Product {i}",
+                    Tags = new List<string> { tags[random.Next(tags.Length)], tags[random.Next(tags.Length)] }.Distinct().ToList(),
+                    CreatedAt = DateTime.UtcNow.AddDays(-random.Next(1, 365))
+                };
+                await CreateNodeAsync(product);
+                list_products.Add(product);
+            }
+            
+            var cities = new[] { "Moscow", "Saint Petersburg", "Kazan", "Novosibirsk", "Yekaterinburg" };
+            for (int i = 1; i <= storeCount; i++)
+            {
+                var store = new StoreNode
+                {
+                    Id = $"store_{i:D3}",
+                    Name = $"Store {i}",
+                    Address = $"{cities[random.Next(cities.Length)]}, Street {random.Next(1, 100)}",
+                    Capacity = random.Next(50, 500)
+                };
+                await CreateNodeAsync(store);
+                list_stores.Add(store);
+            }
+            
+            int totalRelationships = 0;
+            
+            foreach (var user in list_users)
+            {
+                foreach (var product in list_products)
+                {
+                    if (random.NextDouble() < viewedProb)
+                    {
+                        var viewedEdge = new ViewedEdge();
+                        await CreateEdgeAsync(user, product, viewedEdge);
+                        totalRelationships++;
+                    }
+                    
+                    if (random.NextDouble() < likedProb)
+                    {
+                        var likedEdge = new LikedEdge();
+                        await CreateEdgeAsync(user, product, likedEdge);
+                        totalRelationships++;
+                    }
+                    
+                    if (random.NextDouble() < purchasedProb)
+                    {
+                        var purchasedEdge = new PurchasedEdge
+                        {
+                            Rating = random.Next(1, 6)
+                        };
+                        await CreateEdgeAsync(user, product, purchasedEdge);
+                        totalRelationships++;
+                    }
+                    
+                    if (random.NextDouble() < shownProb)
+                    {
+                        var shownEdge = new ShownEdge();
+                        await CreateEdgeAsync(product, user, shownEdge);
+                        totalRelationships++;
+                    }
+                }
+            }
+            
+            for (int i = 0; i < list_products.Count; i++)
+            {
+                for (int j = i + 1; j < list_products.Count; j++)
+                {
+                    if (random.NextDouble() < boughtTogetherProb)
+                    {
+                        var boughtTogetherEdge = new BoughtTogetherEdge();
+                        await CreateEdgeAsync(list_products[i], list_products[j], boughtTogetherEdge);
+                        totalRelationships++;
+                    }
+                }
+            }
+            
+            foreach (var user in list_users)
+            {
+                foreach (var store in list_stores)
+                {
+                    if (random.NextDouble() < visitedProb)
+                    {
+                        var visitedEdge = new VisitedEdge();
+                        await CreateEdgeAsync(user, store, visitedEdge);
+                        totalRelationships++;
+                    }
+                }
+            }
+            
+            foreach (var store in list_stores)
+            {
+                foreach (var product in list_products)
+                {
+                    if (random.NextDouble() < quantityProb)
+                    {
+                        var quantityEdge = new QuantityEdge
+                        {
+                            Quantity = random.Next(0, 100)
+                        };
+                        await CreateEdgeAsync(store, product, quantityEdge);
+                        totalRelationships++;
+                    }
+                }
+            }
         }
-        public async Task<List<ProductNode>> GetViewedProductsByUserAsync(string userId)
+        public async Task<List<ProductNode>> GetViewedProductsByUserAsync(UserNode user)
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (user == null)
+                throw new ArgumentNullException(nameof(user.Id));
+
+            var query = @"
+                MATCH (u:User {ext_id: $userId})-[r:VIEWED]->(p:Product)
+                RETURN 
+                    p.ext_id as ext_id,
+                    p.name as name,
+                    p.type as type,
+                    p.tags as tags,
+                    p.createdAt as createdAt,
+                    r.date as viewDate,
+                    r.type as edgeType
+                ORDER BY r.date DESC
+                LIMIT 50";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId"] = user.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var products = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<ProductNode>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var product = new ProductNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+
+                        if (cursor.Current["tags"] is List<object> tagList)
+                        {
+                            product.Tags = tagList.Select(t => t.ToString()).ToList();
+                        }
+
+                        if (cursor.Current["createdAt"] is DateTime createdAt)
+                        {
+                            product.CreatedAt = createdAt;
+                        }
+
+                        results.Add(product);
+                    }
+
+                    return results;
+                });
+
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting viewed products for user {user.Id}: {ex.Message}");
+                throw;
+            }
         }
-        public async Task<List<UserNode>> GetUsersWhoLikedProductAsync(string productId)
+        public async Task<List<UserNode>> GetUsersWhoLikedProductAsync(ProductNode product)
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (product == null)
+                throw new ArgumentNullException(nameof(product.Id));
+
+            var query = @"
+                MATCH (u:User)-[r:LIKED]->(p:Product {ext_id: $productId})
+                RETURN 
+                    u.ext_id as ext_id,
+                    u.name as name,
+                    u.type as type,
+                    r.date as likeDate
+                ORDER BY r.date DESC";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["productId"] = product.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var users = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<UserNode>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var user = new UserNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+
+                        results.Add(user);
+                    }
+
+                    return results;
+                });
+
+                return users;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting users who liked product {product.Id}: {ex.Message}");
+                throw;
+            }
         }
-        public async Task<List<ProductNode>> GetRecommendedProductsAsync(string userId)
+        public async Task<List<ProductNode>> GetRecommendedProductsbyUserAsync(UserNode user)
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (user == null)
+                throw new ArgumentNullException(nameof(user.Id));
+
+            var query = @"
+                MATCH (u:User {ext_id: $userId})-[r1:VIEWED|LIKED]->(p:Product)
+                
+                MATCH (p)<-[r2:VIEWED|LIKED]-(other:User)
+                WHERE other.ext_id <> $userId
+                
+                MATCH (other)-[r3:VIEWED|LIKED]->(rec:Product)
+                WHERE NOT EXISTS((u)-[:VIEWED|LIKED]->(rec))
+                
+                RETURN 
+                    rec.ext_id as ext_id,
+                    rec.name as name,
+                    rec.tags as tags,
+                    rec.createdAt as createdAt,
+                    COUNT(DISTINCT other) as recommendedBy,
+                    COUNT(DISTINCT r3) as interactionCount
+                ORDER BY recommendedBy DESC, interactionCount DESC
+                LIMIT 20";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["userId"] = user.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var products = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<ProductNode>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var product = new ProductNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+
+                        if (cursor.Current["tags"] is List<object> tagList)
+                        {
+                            product.Tags = tagList.Select(t => t.ToString()).ToList();
+                        }
+
+                        if (cursor.Current["createdAt"] is DateTime createdAt)
+                        {
+                            product.CreatedAt = createdAt;
+                        }
+
+                        results.Add(product);
+                    }
+
+                    return results;
+                });
+
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting recommendations for user {user.Id}: {ex.Message}");
+                throw;
+            }
         }
-        public async Task<List<ProductNode>> GetBoughtTogetherProductsAsync(string productId)
+        public async Task<List<ProductNode>> GetRecommendedProductsbyProductAsync(ProductNode Product)
         {
-            Console.WriteLine("TEST1728");
-            return null;
+            if (Product == null)
+                throw new ArgumentNullException(nameof(Product.Id));
+
+            var query = @"                
+                MATCH (product:Product {ext_id: $productId})-[r:BOUGHT_TOGETHER]-(rec:Product)
+                
+                RETURN 
+                    rec.ext_id as ext_id,
+                    rec.name as name,
+                    rec.tags as tags,
+                    rec.createdAt as createdAt,
+                    COUNT(r) as connectionStrength
+                ORDER BY connectionStrength DESC
+                LIMIT 20";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["productId"] = Product.Id
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var products = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<ProductNode>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var product = new ProductNode
+                        {
+                            Id = cursor.Current["ext_id"].As<string>(),
+                            Name = cursor.Current["name"]?.As<string>() ?? string.Empty
+                        };
+
+                        if (cursor.Current["tags"] is List<object> tagList)
+                        {
+                            product.Tags = tagList.Select(t => t.ToString()).ToList();
+                        }
+
+                        if (cursor.Current["createdAt"] is DateTime createdAt)
+                        {
+                            product.CreatedAt = createdAt;
+                        }
+
+                        results.Add(product);
+                    }
+
+                    return results;
+                });
+
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting recommendations for user {Product.Id}: {ex.Message}");
+                throw;
+            }
         }
         public async Task<Dictionary<string, int>> GetProductAvailabilityInStoresAsync(string productId)
         {

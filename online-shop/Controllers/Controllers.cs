@@ -9,6 +9,7 @@ using Neo4j.Driver;
 using project.Services;
 using project.Models.Neo4jModels;
 using System.Data.Common;
+using ECommerce.Data.Entities.Catalog;
 
 namespace ECommerce.Controller {
     [Route("api/[controller]")]
@@ -245,6 +246,22 @@ namespace ECommerce.Controller {
             public string _id_product {get;set;} = string.Empty;
         }
 
+        /*Чистовая часть*/
+        public class DtoSeedData
+        {
+            public int userCount {get;set;} = 30;
+            public int productCount {get;set;} = 50;
+            public int storeCount {get;set;} = 10;
+        
+            public double viewedProb {get;set;} = 0.35;
+            public double likedProb {get;set;} = 0.35;
+            public double purchasedProb {get;set;} = 0.35;
+            public double boughtTogetherProb {get;set;} = 0.35;
+            public double visitedProb {get;set;} = 0.35;
+            public double quantityProb {get;set;} = 0.35;
+            public double shownProb {get;set;} = 0.35;
+        }
+
         [HttpPost("testCreateNodeUser")]
         public async Task<IActionResult> testCreateNodeUser([FromBody] CreateNodeUser Node)
         {
@@ -426,6 +443,144 @@ namespace ECommerce.Controller {
                 { 
                     success = true, 
                     message = rezult
+                });
+        }
+        
+        /*ЧИСТОВАЯ ЧАСТЬ*/
+        [HttpDelete("AllClearDB")]
+        public async Task<IActionResult> AllClearDB()
+        {
+            var rezult = await _neo4jService.ClearDatabaseAsync();
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = rezult
+                });
+        }
+
+        [HttpPost("SeedTestData")]
+        public async Task<IActionResult> SeedTestData([FromBody] DtoSeedData SeedData)
+        {
+            await _neo4jService.SeedTestDataAsync(
+                SeedData.userCount, SeedData.productCount, SeedData.storeCount,
+                SeedData.viewedProb, SeedData.likedProb, SeedData.purchasedProb,
+                SeedData.boughtTogetherProb, SeedData.visitedProb, SeedData.quantityProb,
+                SeedData.shownProb);
+            return Ok(new 
+                { 
+                    success = true
+                });
+        }
+        [HttpGet("GetNodeByType")]
+        public async Task<IActionResult> GetNodeByType([FromQuery] string type )
+        {
+            object rezult = type.ToLower() switch
+                {
+                    "user" => await _neo4jService.GetNodesByTypeAsync<UserNode>("User"),
+                    "product" => await _neo4jService.GetNodesByTypeAsync<ProductNode>("Product"),
+                    "store" => await _neo4jService.GetNodesByTypeAsync<StoreNode>("Store"),
+                    _ => throw new ArgumentException($"Unknown node type: {type}")
+                };
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{type}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get item",
+                    data = rezult
+                });
+        }
+
+        [HttpGet("GetViewedProductsByUser")]
+        public async Task<IActionResult> GetViewedProductsByUser([FromQuery] string userid )
+        {
+            var user = new UserNode{Id = userid};
+            var rezult = await _neo4jService.GetViewedProductsByUserAsync(user);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{userid}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetUsersWhoLikedProductAsync")]
+        public async Task<IActionResult> GetUsersWhoLikedProductAsync([FromQuery] string productid )
+        {
+            var product = new ProductNode{Id = productid};
+            var rezult = await _neo4jService.GetUsersWhoLikedProductAsync(product);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{productid}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+
+        [HttpGet("GetRecommendedProductsbyUserAsync")]
+        public async Task<IActionResult> GetRecommendedProductsbyUserAsync([FromQuery] string userid )
+        {
+            var user = new UserNode{Id = userid};
+            var rezult = await _neo4jService.GetRecommendedProductsbyUserAsync(user);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{userid}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
+        [HttpGet("GetRecommendedProductsbyProductAsync")]
+        public async Task<IActionResult> GetRecommendedProductsbyProductAsync([FromQuery] string productid )
+        {
+            var product = new ProductNode{Id = productid};
+            var rezult = await _neo4jService.GetRecommendedProductsbyProductAsync(product);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"User with '{productid}' not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
                 });
         }
     }

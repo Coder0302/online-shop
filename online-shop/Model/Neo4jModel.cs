@@ -132,7 +132,7 @@ namespace project.Models.Neo4jModels
             return properties;
         }
     }
-    public class BoughtTogetherEdge : Neo4jVoidEdge
+    public class BoughtTogetherEdge : Neo4jEdge
     {
         public BoughtTogetherEdge()
         {
@@ -147,7 +147,7 @@ namespace project.Models.Neo4jModels
             return new Dictionary<string, object>
             {
                 ["name"] = Name,
-                ["type"] = Type
+                ["type"] = (int)Type
             };
         }
     }
