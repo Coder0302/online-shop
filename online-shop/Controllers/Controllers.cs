@@ -747,5 +747,32 @@ namespace ECommerce.Controller {
                     data = rezult
                 });
         }
+        public class UserPurchaseSummary
+        {
+            public UserNode User { get; set; }
+            public List<ProductNode> Products { get; set; } = new();
+            public int TotalPurchases { get; set; }
+            public List<string> ProductIds { get; set; } = new();
+        }
+        [HttpGet("GetTopUsersByViewedAndPurchased")]
+        public async Task<IActionResult> GetTopUsersByViewedAndPurchased([FromQuery] int limit)
+        {
+            var rezult = await _neo4jService.GetTopUsersByViewedAndPurchasedAsync(limit);
+            if (rezult == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = $"not found"
+                });
+            }
+           
+            return Ok(new 
+                { 
+                    success = true, 
+                    message = $"Get items",
+                    data = rezult
+                });
+        }
     }
 }

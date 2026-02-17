@@ -21,6 +21,13 @@ public class ProductTagStatistik
     public int ProductCount { get; set; }
     public int TotalViews { get; set; }
 }
+public class UserPurchaseSummary
+        {
+            public UserNode User { get; set; }
+            public List<ProductNode> Products { get; set; } = new();
+            public int TotalPurchases { get; set; }
+            public List<string> ProductIds { get; set; } = new();
+        }
 namespace project.Services
 {
     public interface INeo4jService
@@ -57,6 +64,7 @@ namespace project.Services
         Task<List<UserCommonResult>> GetUsersWithCommonEdgeAsync(UserNode user, Neo4jEdge edge, int limit = 20);
         Task<List<ProductCountResult>> GetTopProductsAsync(string edgetype, int limit = 10);
         Task<List<ProductTagStatistik>> GetTagStatisticsAsync();
+        Task<List<UserPurchaseSummary>> GetTopUsersByViewedAndPurchasedAsync(int limit = 10);
     }
     public class Neo4jService : INeo4jService
     {
@@ -1259,5 +1267,95 @@ namespace project.Services
                 throw;
             }
         }
+
+        public async Task<List<UserPurchaseSummary>> GetTopUsersByViewedAndPurchasedAsync(int limit = 10)
+        {
+            var query = @"
+                MATCH (u:User)-[:VIEWED]->(p:Product)<-[:PURCHASED]-(u)
+                WITH u, p, COUNT(*) as interaction_count
+                RETURN 
+                    u.ext_id as user_id,
+                    u.name as user_name,
+                    COLLECT(p {
+                        .ext_id, 
+                        .name, 
+                        .tags, 
+                        .createdAt
+                    }) as products,
+                    SUM(interaction_count) as total_purchases
+                ORDER BY total_purchases DESC
+                LIMIT $limit";
+
+            var parameters = new Dictionary<string, object>
+            {
+                ["limit"] = limit
+            };
+
+            await using var session = _context.AsyncSession();
+
+            try
+            {
+                var result = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var results = new List<UserPurchaseSummary>();
+
+                    while (await cursor.FetchAsync())
+                    {
+                        var user = new UserNode
+                        {
+                            Id = cursor.Current["user_id"].As<string>(),
+                            Name = cursor.Current["user_name"]?.As<string>() ?? string.Empty
+                        };
+
+                        var totalPurchases = cursor.Current["total_purchases"].As<int>();
+                        
+                        // Получаем продукты
+                        var products = new List<ProductNode>();
+                        var productsData = cursor.Current["products"].As<List<Dictionary<string, object>>>();
+                        
+                        foreach (var productData in productsData)
+                        {
+                            var product = new ProductNode
+                            {
+                                Id = productData["ext_id"].ToString(),
+                                Name = productData["name"]?.ToString() ?? string.Empty
+                            };
+
+                            if (productData.ContainsKey("tags") && productData["tags"] is List<object> tagList)
+                                product.Tags = tagList.Select(t => t.ToString()).ToList();
+
+                            if (productData.ContainsKey("createdAt") && productData["createdAt"] is DateTime createdAt)
+                                product.CreatedAt = createdAt;
+
+                            products.Add(product);
+                        }
+
+                        results.Add(new UserPurchaseSummary
+                        {
+                            User = user,
+                            Products = products,
+                            TotalPurchases = totalPurchases,
+                            ProductIds = products.Select(p => p.Id).ToList()
+                        });
+                    }
+
+                    return results;
+                });
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting top users by viewed and purchased: {ex.Message}");
+                throw;
+            }
+        }
+        /*
+        MATCH (u:User)-[:VIEWED]->(p:Product)<-[:PURCHASED]-(u)
+        WITH u, p, COUNT(*) as interaction_count
+        RETURN u, COLLECT(p) as products, SUM(interaction_count) as total_purchases
+        ORDER BY total_purchases DESC
+        */
     }
 }
