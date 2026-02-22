@@ -7,7 +7,7 @@ scrape_configs:
       - targets: ['prometheus:9090']
   - job_name: 'mongodb'
     static_configs:
-      - targets: ['mongo_exporter:9216', 'mongo_exporter_2:9216', 'mongo_exporter3:9216']
+      - targets: ['mongo_exporter:9216', 'mongo_exporter_2:9216', 'mongo_exporter_3:9216']
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres-exporter:9187', 'postgres-exporter_2:9187']
