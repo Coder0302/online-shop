@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using System.Reflection.Emit;
 
 namespace ECommerce.Data;
+
+/// <summary>
+/// Основной EF Core контекст интернет-магазина.
+/// </summary>
 public class ECommerceDbContext(DbContextOptions<ECommerceDbContext> options) : DbContext(options)
 {
-
-    // DbSet'� �� ��������
+    // Доменные сущности.
     public DbSet<Entities.Auth.User> Users => Set<Entities.Auth.User>();
     public DbSet<Entities.Catalog.Brand> Brands => Set<Entities.Catalog.Brand>();
     public DbSet<Entities.Catalog.Category> Categories => Set<Entities.Catalog.Category>();
@@ -21,23 +23,24 @@ public class ECommerceDbContext(DbContextOptions<ECommerceDbContext> options) : 
     public DbSet<Entities.Sales.Cart> Carts => Set<Entities.Sales.Cart>();
     public DbSet<Entities.Sales.CartItem> CartItems => Set<Entities.Sales.CartItem>();
 
-
-
+    // DTO для read-only SQL проекций (окна и агрегаты).
     public DbSet<PriceRankWithinCategoryDto> PriceRankWithinCategory => Set<PriceRankWithinCategoryDto>();
     public DbSet<LatestPriceDto> LatestPrices => Set<LatestPriceDto>();
     public DbSet<RunningCartValueDto> RunningCartValues => Set<RunningCartValueDto>();
 
-
-    protected override void OnModelCreating(ModelBuilder b)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        b.HasPostgresExtension("pgcrypto");
-        b.HasPostgresExtension("btree_gist");
+        // PostgreSQL extensions required by migrations/query features.
+        modelBuilder.HasPostgresExtension("pgcrypto");
+        modelBuilder.HasPostgresExtension("btree_gist");
 
-        b.ApplyConfigurationsFromAssembly(typeof(ECommerceDbContext).Assembly); // ��������� ��� *Config.cs
+        // Подхватываем все IEntityTypeConfiguration<T> из текущей сборки.
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ECommerceDbContext).Assembly);
 
-        b.Entity<PriceRankWithinCategoryDto>().HasNoKey().ToView(null);
-        b.Entity<LatestPriceDto>().HasNoKey().ToView(null);
-        b.Entity<RunningCartValueDto>().HasNoKey().ToView(null);
+        // DTO не имеют table/view mapping: это только проекции SQL.
+        modelBuilder.Entity<PriceRankWithinCategoryDto>().HasNoKey().ToView(null);
+        modelBuilder.Entity<LatestPriceDto>().HasNoKey().ToView(null);
+        modelBuilder.Entity<RunningCartValueDto>().HasNoKey().ToView(null);
     }
 }
 

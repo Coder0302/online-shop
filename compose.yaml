@@ -33,7 +33,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - ./pg/pgdata:/var/lib/postgresql/data
 
   pg_repl:
     image: postgres:16
@@ -49,7 +49,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - ./pgdata_repl:/var/lib/postgresql/data
+      - ./pg/pgdata_repl:/var/lib/postgresql/data
     depends_on:
       - db
 
@@ -62,7 +62,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ./dumps:/dumps
+      - ./pg/dumps:/dumps
     ports:
       - "5434:5432"
 
@@ -95,10 +95,9 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
     volumes:
-      - ./mongo_data:/data/db
-      - ./init:/docker-entrypoint-initdb.d:ro
-      - ./mongo/keystore/:/key/
-      - ./mongo/init:/init
+      - ./mongo/mongo_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
+      - ./mongo/mongo/init:/init
 
   mongo-express:
     image: mongo-express:1.0.2-20
@@ -148,8 +147,8 @@ services:
     container_name: mongo2
     command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
-      - ./mongo2_data:/data/db
-      - ./mongo/keystore:/key
+      - ./mongo/mongo2_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
     ports:
       - "27018:27017"
       - "27020:27020"
@@ -159,8 +158,8 @@ services:
     container_name: mongo3
     command: ["--replSet", "rs0", "--keyFile", "/key/mongokey", "--bind_ip_all"]
     volumes:
-      - ./mongo3_data:/data/db
-      - ./mongo/keystore:/key
+      - ./mongo/mongo3_data:/data/db
+      - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
     ports:
       - "27019:27017"
       - "27021:27021"
@@ -191,8 +190,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.2
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus_data:/prometheus
+      - ./prom/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prom/prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
@@ -218,11 +217,13 @@ services:
       - "6379:6379"
 
   neo4j:
-    image: neo4j:latest
+    image: neo4j:enterprise
     container_name: neo4j
     environment:
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_server_jvm_additional=-javaagent:/var/lib/neo4j/jmx_exporter/jmx_prometheus_javaagent.jar=20048:/var/lib/neo4j/jmx_exporter/config.yaml
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_server_metrics_prometheus_enabled=true
+      - NEO4J_server_metrics_prometheus_endpoint=0.0.0.0:20048
     ports:
       - "7474:7474"
       - "20048:20048"
@@ -230,5 +231,98 @@ services:
     volumes:
       - ./neo4j_data:/data
       - ./neo4j_logs:/logs
-      - ./neo4j_conf:/conf
       - ./jmx_exporter:/var/lib/neo4j/jmx_exporter
+
+  kafka_f:
+    image: apache/kafka-native
+    container_name: kafka1
+    volumes:
+      - ./kafka/kfk_f:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    environment:
+      # Configure listeners for both docker and host communication
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_f:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+
+      # Settings required for KRaft mode
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+
+      # Listener to use for broker-to-broker communication
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+
+      # Required for a single node cluster
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  
+  kafka_s:
+    image: apache/kafka-native
+    container_name: kafka2
+    volumes:
+      - ./kafka/kfk_s:/var/lib/kafka/data
+    ports:
+      - "9093:9092"
+    environment:
+      # Configure listeners for both docker and host communication
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_s:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+
+      # Settings required for KRaft mode
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+
+      # Listener to use for broker-to-broker communication
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+
+      # Required for a single node cluster
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka_t:
+    image: apache/kafka-native
+    container_name: kafka3
+    volumes:
+      - ./kafka/kfk_t:/var/lib/kafka/data
+    ports:
+      - "9094:9092"
+    environment:
+      # Configure listeners for both docker and host communication
+      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_t:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
+
+      # Settings required for KRaft mode
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+
+      # Listener to use for broker-to-broker communication
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+
+      # Required for a single node cluster
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka-ui:
+    container_name: kafka_ui
+    image: kafbat/kafka-ui:main
+    ports:
+      - 9100:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: "true"
+      KAFKA_CLUSTERS_0_NAME: f
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka_f:9093
+
+      KAFKA_CLUSTERS_1_NAME: s
+      KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: kafka_s:9093
+
+      KAFKA_CLUSTERS_2_NAME: t
+      KAFKA_CLUSTERS_2_BOOTSTRAPSERVERS: kafka_t:9093
+
+    depends_on:
+      - kafka_f
