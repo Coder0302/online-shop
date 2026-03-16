@@ -95,16 +95,9 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
     volumes:
-<<<<<<< HEAD
-      - ./mongo_data:/data/db
-      - ./init:/docker-entrypoint-initdb.d:ro
-      - ./mongo/keystore/:/key/
-      - ./mongo/init:/init
-=======
       - ./mongo/mongo_data:/data/db
       - ./mongo/mongo/keystore/mongokey:/key/mongokey:ro
       - ./mongo/mongo/init:/init
->>>>>>> 0394985 (New code)
 
   mongo-express:
     image: mongo-express:1.0.2-20
