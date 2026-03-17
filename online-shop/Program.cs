@@ -6,21 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using StackExchange.Redis;
 using System.Diagnostics;
-<<<<<<< HEAD
-using MongoDB.Driver;
-using MongoDB.Bson;
-using MongoDB.Bson.IO;
-using Swashbuckle.AspNetCore.Swagger;
-using System.Text;
-using ECommerce.Controller;
-using Neo4j.Driver;
-using project.Services;
-
-var cs = AppConfig.ConnectionStringPg;
-var optBuilder = new DbContextOptionsBuilder<ECommerceDbContext>()
-    .UseNpgsql(cs, o => o.EnableRetryOnFailure());
-=======
->>>>>>> 0394985 (New code)
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
@@ -158,65 +143,6 @@ static async Task RunDemoQueriesAsync(
     await demo.CartTotalsByCustomerAsync(cancellationToken);
     logger.LogInformation("Aggregate queries finished in {ElapsedMs} ms.", timer.ElapsedMilliseconds);
 
-<<<<<<< HEAD
-var redis = ConnectionMultiplexer.Connect(builder.Configuration["RS_CONN"]);
-var redisdb = redis.GetDatabase();
-
-builder.Services.AddDbContextPool<ECommerceDbContext>(sp =>
-{
-    sp.UseNpgsql(builder.Configuration["PG_CONN"]);
-});
-
-IDriver neo4jDriver = GraphDatabase.Driver(
-    builder?.Configuration["Neo4j:Uri"] ?? "bolt://localhost:7687",
-    AuthTokens.Basic(
-        builder?.Configuration["Neo4j:User"] ?? "neo4j",
-        builder?.Configuration["Neo4j:Password"] ?? "password"
-    )
-);
-
-await using var testSession = neo4jDriver.AsyncSession();
-var testResult = await testSession.ExecuteReadAsync(async tx =>
-{
-    var cursor = await tx.RunAsync("RETURN 1 as test");
-    return await cursor.SingleAsync();
-});
-
-Console.WriteLine($"Neo4j подключен: {testResult["test"]}");
-builder.Services.AddScoped<JsonWriterSettings>();
-builder.Services.AddScoped<INeo4jService, Neo4jService>();
-builder.Services.AddScoped<ECommerceDbContext>();
-builder.Services.AddScoped<ShopController>();
-builder.Services.AddSingleton<IMongoClient>(mgcl);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
-builder.Services.AddScoped( sp =>
-{
-    return sp.GetRequiredService<IMongoClient>().GetDatabase("shop");
-});
-builder.Services.AddScoped(sp =>
-{
-    return sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
-});
-builder.Services.AddSingleton<IDriver>(neo4jDriver);
-builder.Services.AddScoped<INeo4jService, Neo4jService>();
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReact",
-        policy => policy
-            .AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader());
-});
-var app = builder.Build();
-app.UseSwagger();
-app.UseSwaggerUI();
-app.UseHttpsRedirection();
-app.MapControllers();
-app.Run();
-=======
     logger.LogInformation("Running window queries.");
     timer.Restart();
     await demo.PriceRankWithinCategoryAsync("RRP", ct: cancellationToken);
@@ -229,4 +155,3 @@ app.Run();
     await JoinsDemo.RunAsync(db, cancellationToken);
     logger.LogInformation("Join demo queries finished in {ElapsedMs} ms.", timer.ElapsedMilliseconds);
 }
->>>>>>> 0394985 (New code)
