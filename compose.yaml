@@ -233,79 +233,88 @@ services:
       - ./jmx_exporter:/var/lib/neo4j/jmx_exporter
 
   kafka_f:
-    image: apache/kafka-native
+    image: confluentinc/cp-kafka
     container_name: kafka1
     volumes:
-      - ./kafka/kfk_f:/var/lib/kafka/data
+      - ./kafka/kfk_f:/var/lib/kafka/
     ports:
       - "9092:9092"
     environment:
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_LISTENERS: CONTROLLER://:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_f:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
-
+      CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_f:9091,2@kafka_s:9091,3@kafka_t:9091
 
       # Listener to use for broker-to-broker communication
       KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
 
       # Required for a single node cluster
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
   
   kafka_s:
-    image: apache/kafka-native
+    image: confluentinc/cp-kafka
     container_name: kafka2
     volumes:
-      - ./kafka/kfk_s:/var/lib/kafka/data
+      - ./kafka/kfk_s:/var/lib/kafka/
     ports:
       - "9093:9092"
     environment:
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_LISTENERS: CONTROLLER://:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_s:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
-
+      CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
-      KAFKA_NODE_ID: 1
+      KAFKA_NODE_ID: 2
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_f:9091,2@kafka_s:9091,3@kafka_t:9091
 
       # Listener to use for broker-to-broker communication
       KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
 
       # Required for a single node cluster
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
 
   kafka_t:
-    image: apache/kafka-native
+    image: confluentinc/cp-kafka
     container_name: kafka3
     volumes:
-      - ./kafka/kfk_t:/var/lib/kafka/data
+      - ./kafka/kfk_t:/var/lib/kafka/
     ports:
       - "9094:9092"
     environment:
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENERS: CONTROLLER://localhost:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_LISTENERS: CONTROLLER://:9091,HOST://0.0.0.0:9092,DOCKER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,DOCKER://kafka_t:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,DOCKER:PLAINTEXT,HOST:PLAINTEXT
-
+      CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
-      KAFKA_NODE_ID: 1
+      KAFKA_NODE_ID: 3
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9091
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_f:9091,2@kafka_s:9091,3@kafka_t:9091
 
       # Listener to use for broker-to-broker communication
       KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
 
       # Required for a single node cluster
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
 
   kafka-ui:
     container_name: kafka_ui
@@ -322,6 +331,9 @@ services:
 
       KAFKA_CLUSTERS_2_NAME: t
       KAFKA_CLUSTERS_2_BOOTSTRAPSERVERS: kafka_t:9093
+
+      KAFKA_CLUSTERS_3_NAME: all
+      KAFKA_CLUSTERS_3_BOOTSTRAPSERVERS: kafka_t:9093, kafka_f:9093, kafka_s:9093
 
     depends_on:
       - kafka_f
