@@ -1,0 +1,2 @@
+установка новой миграции: dotnet ef database update --project online-shop.data --startup-project online-shop
+если надо дропнуть старую бд: dotnet ef database drop 
