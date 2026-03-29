@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using Npgsql.Replication;
-using ZstdSharp.Unsafe;
 
 namespace project.Models.Neo4jModels
 {
@@ -97,7 +95,7 @@ namespace project.Models.Neo4jModels
             {
                 ["name"] = Name,
                 ["type"] = (int)Type,
-                ["Date"] = Date
+                ["date"] = Date
             };
         }
     }
@@ -223,7 +221,8 @@ namespace project.Models.Neo4jModels
                 "PURCHASED" => new PurchasedEdge(),
                 "BOUGHT_TOGETHER" => new BoughtTogetherEdge(),
                 "VISITED" => new VisitedEdge(),
-                "QUANTITY" => new QuantityEdge()
+                "QUANTITY" => new QuantityEdge(),
+                _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown edge type.")
             };
         }
     }

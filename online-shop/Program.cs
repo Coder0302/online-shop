@@ -4,6 +4,8 @@ using ECommerce.Data;
 using ECommerce.Data.Seeding;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using Neo4j.Driver;
+using project.Services;
 using StackExchange.Redis;
 using System.Diagnostics;
 
@@ -20,6 +22,7 @@ builder.Logging.AddSimpleConsole(options =>
 var pgConnection = AppConfig.ResolvePg(builder.Configuration);
 var mongoConnection = AppConfig.ResolveMongo(builder.Configuration);
 var redisConnection = AppConfig.ResolveRedis(builder.Configuration);
+var neo4jSettings = AppConfig.ResolveNeo4j(builder.Configuration);
 
 builder.Services.AddDbContextPool<ECommerceDbContext>(options =>
 {
@@ -28,8 +31,12 @@ builder.Services.AddDbContextPool<ECommerceDbContext>(options =>
 
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnection));
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
+builder.Services.AddSingleton<IDriver>(_ => GraphDatabase.Driver(
+    neo4jSettings.Url,
+    AuthTokens.Basic(neo4jSettings.User, neo4jSettings.Password)));
 builder.Services.AddScoped<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>().GetDatabase("shop"));
 builder.Services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
+builder.Services.AddScoped<INeo4jService, Neo4jService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

@@ -2,7 +2,6 @@ using project.Models.Neo4jModels;
 using Neo4j.Driver;
 using project.Models.Neo4jModels.Responses;
 using System.Data;
-using DnsClient.Protocol;
 using System.Text.Json;
 
 public class UserCommonResult
@@ -538,7 +537,7 @@ namespace project.Services
             double shownProb = 0.35
             )
         {
-            ClearDatabaseAsync();
+            await ClearDatabaseAsync();
             var random = new Random();
             var list_users = new List<UserNode>();
             var list_products = new List<ProductNode>();
