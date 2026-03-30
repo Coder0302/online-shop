@@ -28,8 +28,10 @@ type OrderCreated struct {
 func main() {
 	var is_cons bool
 	var group_id string
+	var ofst int64
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
+	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
 	flag.Parse()
 	topic := "order-created"
 	kafkas := []string{"localhost:9092", "localhost:9093", "localhost:9094"}
@@ -98,7 +100,7 @@ func main() {
 			fmt.Println(payload)
 		}
 	} else {
-		r_cfg := kafka.ReaderConfig{Brokers: kafkas, GroupID: group_id, Topic: topic}
+		r_cfg := kafka.ReaderConfig{Brokers: kafkas, GroupID: group_id, Topic: topic, StartOffset: ofst}
 		kafka_r := kafka.NewReader(r_cfg)
 		for true {
 			// Fetch+Commit -> больше контроля за тем что мы отсмотрели
