@@ -29,11 +29,12 @@ func main() {
 	var is_cons bool
 	var group_id string
 	var ofst int64
+	var topic string
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
 	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
+	flag.StringVar(&topic, "topic", "order-created", "set topic to write/read")
 	flag.Parse()
-	topic := "order-created"
 	kafkas := []string{"localhost:9092", "localhost:9093", "localhost:9094"}
 	if is_cons == false {
 		// producer
@@ -136,65 +137,8 @@ func main() {
 			fmt.Printf("kafka read message %s\n", msg.Value)
 		}
 	}
-	//consumer
-	// topic := "my-topica"
-	// partition := 1
-
-	// conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
-	// if err != nil {
-	// 	log.Fatal("failed to dial leader:", err)
-	// }
-
-	// conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	// batch := conn.ReadBatch(10e3, 1e6) // fetch 10KB min, 1MB max
-
-	// b := make([]byte, 10e3) // 10KB max per message
-	// for {
-	// 	n, err := batch.Read(b)
-	// 	if err != nil {
-	// 		break
-	// 	}
-	// 	fmt.Println(string(b[:n]))
-	// }
-
-	// if err := batch.Close(); err != nil {
-	// 	log.Fatal("failed to close batch:", err)
-	// }
-
-	// if err := conn.Close(); err != nil {
-	// 	log.Fatal("failed to close connection:", err)
-	// }
-
-	// if auto.create.topics.enabled=false:
-	// topic := "my-topic"
-
-	// conn, err := kafka.Dial("tcp", "localhost:9092")
-	// if err != nil {
-	// 	panic(err.Error())
-	// }
-	// defer conn.Close()
-
-	// controller, err := conn.Controller()
-	// if err != nil {
-	// 	panic(err.Error())
-	// }
-	// var controllerConn *kafka.Conn
-	// controllerConn, err = kafka.Dial("tcp", net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port)))
-	// if err != nil {
-	// 	panic(err.Error())
-	// }
-	// defer controllerConn.Close()
-
-	// topicConfigs := []kafka.TopicConfig{
-	// 	{
-	// 		Topic:             topic,
-	// 		NumPartitions:     1,
-	// 		ReplicationFactor: 1,
-	// 	},
-	// }
-
-	// err = controllerConn.CreateTopics(topicConfigs...)
-	// if err != nil {
-	// 	panic(err.Error())
-	// }
 }
+
+// для ksql:
+// create stream orders_canceled (id bigint, name varchar, amount int, orderid bigint, userid bigint, product_name varchar) with ( KAFKA_TOPIC='orders_canceled', value_format='JSON');
+// create table users as select userid, latest_by_offset(id) AS usID from orders_canceled group by userid;
