@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ecommerce.events;
+
+option csharp_namespace = "ECommerce.Events";
+
+message Envelope {
+  string event_id = 1;      // уникальный ID события
+  string event_type = 2;    // "OrderPaid"
+  string entity_id = 3;     // ID заказа (order id)
+  int64 timestamp = 4;      // Unix timestamp в миллисекундах
+  string source = 5;        // название сервиса-источника
+  int32 version = 6;        // версия схемы события
+  Payload payload = 7;      // специфичные для события данные
+}
+
+message Payload {
+  string user_id = 1;       // ID пользователя (обязательно)
+  string product_id = 2;    // ID товара (обязательно)
+  optional int32 rating = 3; // оценка покупки (1-5, необязательно)
+}

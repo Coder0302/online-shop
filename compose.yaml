@@ -346,3 +346,48 @@ services:
 
     depends_on:
       - kafka_f
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.8
+    container_name: schema-registry
+    ports:
+      - "8085:8085"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "kafka_f:9093,kafka_s:9093,kafka_t:9093"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8085"
+      SCHEMA_REGISTRY_AVRO_COMPATIBILITY_LEVEL: "none"
+    depends_on:
+      - kafka_f
+      - kafka_s
+      - kafka_t
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.7.8
+    container_name: kafka-connect
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "kafka_f:9093,kafka_s:9093,kafka_t:9093"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "kafka-connect-group"
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.protobuf.ProtobufConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.protobuf.ProtobufConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8085"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8085"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+      CONNECT_REQUEST_TIMEOUT_MS: 20000
+      CONNECT_RETRY_BACKOFF_MS: 500
+    volumes:
+      - ./kafka-connect/data:/data
+      - ./kafka-connect/plugins:/usr/share/confluent-hub-components
+    depends_on:
+      - kafka_f
+      - kafka_s
+      - kafka_t
+      - schema-registry
