@@ -49,7 +49,7 @@ func main() {
 		}
 		to_write, _ := json.Marshal(payload)
 		msg := kafka.Message{
-			Key:   who.Bytes(),
+			Key:   []byte(who.String()),
 			Value: to_write,
 			Time:  timestamp,
 			Headers: []kafka.Header{
