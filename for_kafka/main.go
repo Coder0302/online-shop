@@ -95,6 +95,8 @@ func main() {
 			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
 
 		defer kafka_w_f.Close()
+		defer kafka_w_s.Close()
+		defer kafka_w_t.Close()
 		who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
 		l := big.NewInt(int64(len(who_purchase)))
 		m := big.NewInt(100)
