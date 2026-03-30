@@ -1,0 +1,13 @@
+{
+  "event_id": "evt-001",
+  "event_type": "OrderPaid",
+  "entity_id": "order-123",
+  "timestamp": 1743350400000,
+  "source": "order-service",
+  "version": 1,
+  "payload": {
+    "user_id": "user_001",
+    "product_id": "product_001",
+    "rating": 5
+  }
+}
