@@ -233,7 +233,7 @@ services:
       - ./jmx_exporter:/var/lib/neo4j/jmx_exporter
 
   kafka_f:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.7.8
     container_name: kafka1
     volumes:
       - ./kafka/kfk_f:/var/lib/kafka/
@@ -241,10 +241,10 @@ services:
       - "9092:9092"
     environment:
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: GO:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LISTENERS: CONTROLLER://:9091,PLAINTEXT://0.0.0.0:9092,DOCKER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,DOCKER://kafka_f:9093
+      KAFKA_LISTENERS: CONTROLLER://:9091,GO://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: GO://localhost:9092,DOCKER://kafka_f:9093
       CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
       KAFKA_NODE_ID: 1
@@ -264,7 +264,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
   
   kafka_s:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.7.8
     container_name: kafka2
     volumes:
       - ./kafka/kfk_s:/var/lib/kafka/
@@ -272,10 +272,10 @@ services:
       - "9093:9092"
     environment:
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: GO:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LISTENERS: CONTROLLER://:9091,PLAINTEXT://0.0.0.0:9092,DOCKER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,DOCKER://kafka_s:9093
+      KAFKA_LISTENERS: CONTROLLER://:9091,GO://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: GO://localhost:9093,DOCKER://kafka_s:9093
       CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
       KAFKA_NODE_ID: 2
@@ -295,7 +295,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
 
   kafka_t:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.7.8
     container_name: kafka3
     volumes:
       - ./kafka/kfk_t:/var/lib/kafka/
@@ -304,9 +304,9 @@ services:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       # Configure listeners for both docker and host communication
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_LISTENERS: CONTROLLER://:9091,PLAINTEXT://0.0.0.0:9092,DOCKER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094,DOCKER://kafka_t:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: GO:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:9091,GO://0.0.0.0:9092,DOCKER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: GO://localhost:9094,DOCKER://kafka_t:9093
       CLUSTER_ID: 'emVyb2RyaW5rZHJpbmtjcm93ZG1vbg=='
       # Settings required for KRaft mode
       KAFKA_NODE_ID: 3
@@ -391,3 +391,42 @@ services:
       - kafka_s
       - kafka_t
       - schema-registry
+
+# docker compose exec -it kafkadb-cli ksql http://kafka-db:8088
+  kafka-db:
+    image: confluentinc/cp-ksqldb-server:7.9.6
+    container_name: kdb-server
+    hostname: ksqldb-server
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./kafka/ksql_db_srv:/var/lib/ksql/data
+    environment:
+      KSQL_CONFIG_DIR: "/etc/ksql"
+      KSQL_KSQL_STREAMS_SECURITY_PROTOCOL: "PLAINTEXT"
+      KSQL_KSQL_STREAMS_CLIENT_LISTENER_NAME: "DOCKER"
+      KSQL_BOOTSTRAP_SERVERS: "kafka_f:9093,kafka_s:9093,kafka_t:9093"
+      KSQL_KSQL_STREAMS_BOOTSTRAP_SERVERS: "kafka_f:9093,kafka_s:9093,kafka_t:9093"
+      KSQL_HOST_NAME: ksqldb-server
+      KSQL_KSQL_SERVICE_ID: "ksql_service_1"
+      KSQL_LISTENERS: "http://0.0.0.0:8088"
+      KSQL_CACHE_MAX_BYTES_BUFFERING: 0
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: "http://schema-registry:8085"
+      KSQL_KSQL_CONNECT_URL: "http://connect:8083"
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: 1
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
+      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
+    depends_on:
+      - kafka_f
+      - kafka_s
+      - kafka_t
+      - schema-registry
+
+  kafkadb-cli:
+    image: confluentinc/cp-ksqldb-server:8.1.0
+    container_name: kdb-cli
+    depends_on:
+     - kafka-db
+     - schema-registry
+    entrypoint: /bin/sh
+    tty: true
