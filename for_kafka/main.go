@@ -70,6 +70,10 @@ func main() {
 					Value: []byte("from Go"),
 				},
 				{
+					Key:   "version",
+					Value: []byte("1"),
+				},
+				{
 					Key:   "timestamp",
 					Value: []byte(time.Now().Format(time.RFC3339)),
 				},
