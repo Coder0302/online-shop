@@ -32,8 +32,9 @@ type orderCanceled struct {
 }
 
 type OrderPurchaised struct {
-	Who    string `json:"who_created"`
-	UserID string `json:"user_id"`
+	ProductID string `json:"product_id"`
+	UserID    string `json:"user_id"`
+	rating    int    `json:"rating"`
 }
 
 // запуск
@@ -46,7 +47,7 @@ func main() {
 	var group_id string
 	var ofst int64
 	var tpc int
-	topics := []string{"order-created", "order-purchased", "order-canceled"}
+	topics := []string{"order-created", "order-canceled", "order-paid", "orders-dlq"}
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
 	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
@@ -73,7 +74,8 @@ func main() {
 	defer controllerConn.Close()
 
 	topicConfigs := []kafka.TopicConfig{{Topic: "order-created", NumPartitions: 5, ReplicationFactor: 3},
-		{Topic: "order-canceled", NumPartitions: 5, ReplicationFactor: 3}, {Topic: "reder-purchaised", NumPartitions: 5, ReplicationFactor: 3}}
+		{Topic: "order-canceled", NumPartitions: 5, ReplicationFactor: 3},
+		{Topic: "order-paid", NumPartitions: 5, ReplicationFactor: 3}, {Topic: "orders-dlq", NumPartitions: 5, ReplicationFactor: 3}}
 
 	err = controllerConn.CreateTopics(topicConfigs...)
 	if err != nil {
@@ -154,8 +156,9 @@ func main() {
 				fmt.Print("Order Created ", payload, "\n")
 			} else if t.Cmp(big.NewInt(60)) == -1 {
 				payload := OrderPurchaised{
-					Who:    who_purchase[who.Int64()],
-					UserID: who.String(),
+					ProductID: what.String(),
+					UserID:    who.String(),
+					rating:    5,
 				}
 				to_write, _ := json.Marshal(payload)
 				msg := kafka.Message{
@@ -237,6 +240,8 @@ func main() {
 		}
 	} else {
 		r_cfg := kafka.ReaderConfig{Brokers: kafkas, GroupID: group_id, Topic: topics[tpc], StartOffset: ofst}
+		kafka_dlq := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: "orders-dlq", WriteTimeout: 10 * time.Second,
+			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
 		kafka_r := kafka.NewReader(r_cfg)
 		for true {
 			// Fetch+Commit -> больше контроля за тем что мы отсмотрели
@@ -244,19 +249,16 @@ func main() {
 			// if err != nil {
 			// 	kafka_r.CommitMessages(context.TODO(), msg)
 			// }
-			for kafka_r.Lag() > 15 {
+			if kafka_r.Lag() > 15 {
 				msg, err := kafka_r.ReadLag(context.TODO())
 				if err != nil {
-					if err != io.EOF {
-						msg, err = kafka_r.ReadLag(context.TODO())
-					} else {
+					if err == io.EOF {
 						return
-					}
-					if err != nil {
+					} else {
 						fmt.Errorf("error occured: %s", err.Error())
 					}
 				}
-				fmt.Printf("kafka read lag: %d\n", msg)
+				fmt.Printf("kafka lag above 15 and is: %d\n", msg)
 			}
 			msg, err := kafka_r.ReadMessage(context.TODO())
 			if err != nil {
@@ -267,8 +269,10 @@ func main() {
 				}
 				if err != nil {
 					fmt.Errorf("error occured: %s", err.Error())
+					kafka_dlq.WriteMessages(context.TODO(), msg)
 				}
 			}
+			kafka_r.CommitMessages(context.TODO(), msg)
 			fmt.Printf("kafka read message %s\n", msg.Value)
 		}
 	}
