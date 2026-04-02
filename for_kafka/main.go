@@ -25,17 +25,21 @@ type OrderCreated struct {
 }
 
 type orderCanceled struct {
-	OrderID string `json:"order_id"`
+	OrderID int    `json:"order_id"`
 	Who     string `json:"who_created"`
-	UserID  string `json:"user_id"`
+	UserID  int    `json:"user_id"`
 	Product string `json:"product"`
 }
 
 type OrderPurchaised struct {
 	ProductID string `json:"product_id"`
 	UserID    string `json:"user_id"`
-	rating    int    `json:"rating"`
+	Rating    int    `json:"rating"`
 }
+
+// для ksql:
+// create stream canceled (`order_id` bigint, `who_created` varchar, `user_id` bigint, `product` varchar) with ( KAFKA_TOPIC='order-canceled', value_format='JSON');
+// create table canceled_users as select userid, latest_by_offset(id) AS usID from second_orders_canceled group by userid;
 
 // запуск
 // ./main -consumer=true -group abc, обязательно у -consumer должно стоять равно иначе произойдёт невкусное
@@ -89,16 +93,16 @@ func main() {
 		// по дефолту эта настройка должна быть включена
 		what_created := []string{"printer", "scaner", "cable", "monitor", "pc", "ic", "acdc"}
 		order_id := 1
-		kafka_w_f := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[0], WriteTimeout: 10 * time.Second,
+		kafka_w_created := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[0], WriteTimeout: 10 * time.Second,
 			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
-		kafka_w_s := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[1], WriteTimeout: 10 * time.Second,
+		kafka_w_canceled := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[1], WriteTimeout: 10 * time.Second,
 			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
-		kafka_w_t := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[2], WriteTimeout: 10 * time.Second,
+		kafka_w_paid := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[2], WriteTimeout: 10 * time.Second,
 			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
 
-		defer kafka_w_f.Close()
-		defer kafka_w_s.Close()
-		defer kafka_w_t.Close()
+		defer kafka_w_created.Close()
+		defer kafka_w_canceled.Close()
+		defer kafka_w_paid.Close()
 		who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
 		l := big.NewInt(int64(len(who_purchase)))
 		m := big.NewInt(100)
@@ -148,7 +152,7 @@ func main() {
 						},
 					},
 				}
-				err := kafka_w_f.WriteMessages(context.Background(), msg)
+				err := kafka_w_created.WriteMessages(context.Background(), msg)
 				if err != nil {
 					log.Fatal("failed to write messages: ", err)
 				}
@@ -158,7 +162,7 @@ func main() {
 				payload := OrderPurchaised{
 					ProductID: what.String(),
 					UserID:    who.String(),
-					rating:    5,
+					Rating:    5,
 				}
 				to_write, _ := json.Marshal(payload)
 				msg := kafka.Message{
@@ -192,13 +196,13 @@ func main() {
 						},
 					},
 				}
-				kafka_w_s.WriteMessages(context.TODO(), msg)
+				kafka_w_paid.WriteMessages(context.TODO(), msg)
 				fmt.Print("Order Purchaised ", payload, "\n")
 			} else {
 				payload := orderCanceled{
+					OrderID: order_id,
 					Who:     who_purchase[who.Int64()],
-					UserID:  who.String(),
-					OrderID: strconv.Itoa(order_id),
+					UserID:  int(who.Int64()),
 					Product: what_created[what.Int64()],
 				}
 				to_write, _ := json.Marshal(payload)
@@ -233,7 +237,7 @@ func main() {
 						},
 					},
 				}
-				kafka_w_t.WriteMessages(context.TODO(), msg)
+				kafka_w_canceled.WriteMessages(context.TODO(), msg)
 				fmt.Print("Order Canceled ", payload, "\n")
 			}
 			time.Sleep(time.Duration(5000))
@@ -278,7 +282,3 @@ func main() {
 		}
 	}
 }
-
-// для ksql:
-// create stream orders_canceled (id bigint, name varchar, amount int, orderid bigint, userid bigint, product_name varchar) with ( KAFKA_TOPIC='orders_canceled', value_format='JSON');
-// create table users as select userid, latest_by_offset(id) AS usID from orders_canceled group by userid;
