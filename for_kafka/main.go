@@ -156,7 +156,6 @@ func main() {
 				if err != nil {
 					log.Fatal("failed to write messages: ", err)
 				}
-				order_id++
 				fmt.Print("Order Created ", payload, "\n")
 			} else if t.Cmp(big.NewInt(60)) == -1 {
 				payload := OrderPurchaised{
@@ -240,6 +239,7 @@ func main() {
 				kafka_w_canceled.WriteMessages(context.TODO(), msg)
 				fmt.Print("Order Canceled ", payload, "\n")
 			}
+			order_id++
 			time.Sleep(time.Duration(5000))
 		}
 	} else {
