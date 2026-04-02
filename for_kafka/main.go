@@ -242,6 +242,7 @@ func main() {
 		r_cfg := kafka.ReaderConfig{Brokers: kafkas, GroupID: group_id, Topic: topics[tpc], StartOffset: ofst}
 		kafka_dlq := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: "orders-dlq", WriteTimeout: 10 * time.Second,
 			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
+		defer kafka_dlq.Close()
 		kafka_r := kafka.NewReader(r_cfg)
 		for true {
 			// Fetch+Commit -> больше контроля за тем что мы отсмотрели
