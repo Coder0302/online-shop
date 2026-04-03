@@ -31,10 +31,54 @@ type orderCanceled struct {
 	Product string `json:"product"`
 }
 
+// sum, avg, min/max, count, collect_list/collect_set, topk
+// window tumbling (SIZE X SECONDS/MINUTES/HOURS/DAYS) - по времени, фиксированные
+// window hopping - скользящие (size 5 minuets advance by 1) - окно в 5 минут но которое может каждый раз передвигать на 1
+// window session - типа умное окно, которое начнёт работать с первым пришедшим в него сообщением, если долго ждать, то закроется
+// есть ещё grace period который заставляет не закрывать окно какое-то время после истечения окна
+// HAVING - если что-то больше, то
+
+// CREATE TABLE user_product_cancels_set
+// >WITH (key_format='JSON')
+// >AS
+// >  SELECT
+// >    user_id,
+// >    COLLECT_SET(product) AS total_cancels
+// >  FROM canc_ord_transform
+// >  GROUP BY user_id
+// >  EMIT CHANGES;
+
+//  CREATE TABLE user_product_cancels_hourly
+// >WITH (key_format='JSON')
+// >AS
+// >  SELECT
+// >    user_id,
+// >    product,
+// >    COUNT(*) AS total_cancels
+// >  FROM canc_ord_transform
+// >  WINDOW TUMBLING (SIZE 5 MINUTES)
+// >  GROUP BY user_id, product
+// >  EMIT CHANGES;
+
+// CREATE TABLE canc_printers_price
+// >WITH (KEY_FORMAT='JSON')
+// >AS
+// >SELECT
+// >    user_id,
+// >    product,
+// >    COUNT(*) AS total_cancelation
+// >FROM canc_ord_transform
+// >GROUP BY user_id, product
+// >EMIT CHANGES;
+
 type OrderPurchaised struct {
 	ProductID string `json:"product_id"`
 	UserID    string `json:"user_id"`
 	Rating    int    `json:"rating"`
+}
+
+type OrderDlQ struct {
+	Smth string `json:"smth"`
 }
 
 // для ksql:
@@ -199,46 +243,87 @@ func main() {
 				kafka_w_paid.WriteMessages(context.TODO(), msg)
 				fmt.Print("Order Purchaised ", payload, "\n")
 			} else {
+				t, _ := rand.Int(rand.Reader, big.NewInt(10))
 				payload := orderCanceled{
 					OrderID: order_id,
 					Who:     who_purchase[who.Int64()],
 					UserID:  int(who.Int64()),
 					Product: what_created[what.Int64()],
 				}
-				to_write, _ := json.Marshal(payload)
-				msg := kafka.Message{
-					Key:   []byte(who.String()),
-					Value: to_write,
-					Time:  timestamp,
-					Headers: []kafka.Header{
-						{
-							Key:   "eventType",
-							Value: []byte("OrderCanceled"),
+				if t.Cmp(big.NewInt(6)) == -1 {
+					payload := OrderDlQ{
+						Smth: "this is an error",
+					}
+					to_write, _ := json.Marshal(payload)
+					msg := kafka.Message{
+						Key:   []byte(who.String()),
+						Value: to_write,
+						Time:  timestamp,
+						Headers: []kafka.Header{
+							{
+								Key:   "eventType",
+								Value: []byte("OrderCanceled"),
+							},
+							{
+								Key:   "eventID",
+								Value: []byte("0"),
+							},
+							{
+								Key:   "entityID",
+								Value: who.Bytes(),
+							},
+							{
+								Key:   "Source",
+								Value: []byte("from Go"),
+							},
+							{
+								Key:   "version",
+								Value: []byte("1"),
+							},
+							{
+								Key:   "timestamp",
+								Value: []byte(time.Now().Format(time.RFC3339)),
+							},
 						},
-						{
-							Key:   "eventID",
-							Value: []byte("0"),
+					}
+					kafka_w_canceled.WriteMessages(context.TODO(), msg)
+					fmt.Print("Order Canceled ", payload, "\n")
+				} else {
+					to_write, _ := json.Marshal(payload)
+					msg := kafka.Message{
+						Key:   []byte(who.String()),
+						Value: to_write,
+						Time:  timestamp,
+						Headers: []kafka.Header{
+							{
+								Key:   "eventType",
+								Value: []byte("OrderCanceled"),
+							},
+							{
+								Key:   "eventID",
+								Value: []byte("0"),
+							},
+							{
+								Key:   "entityID",
+								Value: who.Bytes(),
+							},
+							{
+								Key:   "Source",
+								Value: []byte("from Go"),
+							},
+							{
+								Key:   "version",
+								Value: []byte("1"),
+							},
+							{
+								Key:   "timestamp",
+								Value: []byte(time.Now().Format(time.RFC3339)),
+							},
 						},
-						{
-							Key:   "entityID",
-							Value: who.Bytes(),
-						},
-						{
-							Key:   "Source",
-							Value: []byte("from Go"),
-						},
-						{
-							Key:   "version",
-							Value: []byte("1"),
-						},
-						{
-							Key:   "timestamp",
-							Value: []byte(time.Now().Format(time.RFC3339)),
-						},
-					},
+					}
+					kafka_w_canceled.WriteMessages(context.TODO(), msg)
+					fmt.Print("Order Canceled ", payload, "\n")
 				}
-				kafka_w_canceled.WriteMessages(context.TODO(), msg)
-				fmt.Print("Order Canceled ", payload, "\n")
 			}
 			order_id++
 			time.Sleep(time.Duration(5000))
