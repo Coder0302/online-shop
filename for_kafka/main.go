@@ -38,6 +38,7 @@ type OrderPurchaised struct {
 }
 
 // для ksql:
+// так как обысно используется лишь верхний регистр, то если что-то в маленьком регистре оборачивать в ``
 // create stream canceled (`order_id` bigint, `who_created` varchar, `user_id` bigint, `product` varchar) with ( KAFKA_TOPIC='order-canceled', value_format='JSON');
 // create table canceled_users as select userid, latest_by_offset(id) AS usID from second_orders_canceled group by userid;
 
