@@ -82,7 +82,7 @@ func main() {
 	var group_id string
 	var ofst int64
 	var tpc int
-	topics := []string{"order-shown", "order-viewed", "order-liked", "order-purchaised", "order-bougt_together", "order-visited", "orders-dlq"}
+	topics := []string{"order-shown", "order-viewed", "order-liked", "order-purchaised", "order-bought_together", "order-visited", "orders-dlq"}
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
 	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
