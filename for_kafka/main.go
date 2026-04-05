@@ -118,19 +118,21 @@ func main() {
 		panic(err.Error())
 	}
 	go func() {
+		how_to_del := "m"
 		time_to_sleep := 1 * time.Minute
-		time_to_delete := 1 * time.Minute
+		time_to_delete := 1
+		ttl := strconv.Itoa(time_to_delete) + how_to_del
 		body := struct {
-			Ttl int `json:"ttl"`
+			OlderThen string `json:"olderThen"`
 		}{
-			Ttl: int(time_to_delete),
+			OlderThen: ttl,
 		}
 		body_json, _ := json.Marshal(body)
-		url := "http://localhost:5000/api/smth"
+		url := "http://localhost:5000/api/system/edges/old"
 		http_client := &http.Client{}
 		for true {
 			time.Sleep(time_to_sleep)
-			req, _ := http.NewRequest("GET", url, bytes.NewBuffer(body_json))
+			req, _ := http.NewRequest("DELETE", url, bytes.NewBuffer(body_json))
 			_, err := http_client.Do(req)
 			if err != nil {
 				fmt.Println(err.Error())
