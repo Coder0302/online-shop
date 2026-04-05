@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -115,6 +117,26 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+	go func() {
+		time_to_sleep := 1 * time.Minute
+		time_to_delete := 1 * time.Minute
+		body := struct {
+			Ttl int `json:"ttl"`
+		}{
+			Ttl: int(time_to_delete),
+		}
+		body_json, _ := json.Marshal(body)
+		url := "http://localhost:5000/api/smth"
+		http_client := &http.Client{}
+		for true {
+			time.Sleep(time_to_sleep)
+			req, _ := http.NewRequest("GET", url, bytes.NewBuffer(body_json))
+			_, err := http_client.Do(req)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
+	}()
 
 	if is_cons == false {
 		// producer
