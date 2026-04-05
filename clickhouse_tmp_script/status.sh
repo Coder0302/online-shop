@@ -1,0 +1,6 @@
+echo "Checking ClickHouse status..."
+docker exec -it clickhouse clickhouse-client --query "SELECT 'Database:' as info, name FROM system.databases WHERE name='analytics'"
+echo ""
+docker exec -it clickhouse clickhouse-client --query "SELECT 'Tables in analytics:' as info, name FROM system.tables WHERE database='analytics'"
+echo ""
+docker exec -it clickhouse clickhouse-client --query "SELECT 'Total events:' as info, count() FROM analytics.events"

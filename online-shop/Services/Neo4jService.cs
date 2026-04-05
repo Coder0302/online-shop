@@ -64,6 +64,9 @@ namespace project.Services
         Task<List<ProductCountResult>> GetTopProductsAsync(string edgetype, int limit = 10);
         Task<List<ProductTagStatistik>> GetTagStatisticsAsync();
         Task<List<UserPurchaseSummary>> GetTopUsersByViewedAndPurchasedAsync(int limit = 10);
+
+        Task<DeleteOldEdgesResult> DeleteEdgesOlderThanAsync(DateTime cutoffDate);
+        Task<DeleteIsolatedNodesResult> DeleteIsolatedNodesAsync();
     }
     public class Neo4jService : INeo4jService
     {
@@ -1356,5 +1359,111 @@ namespace project.Services
         RETURN u, COLLECT(p) as products, SUM(interaction_count) as total_purchases
         ORDER BY total_purchases DESC
         */
+        // Добавьте эти методы в класс Neo4jService
+
+        public async Task<DeleteOldEdgesResult> DeleteEdgesOlderThanAsync(DateTime cutoffDate)
+        {
+            var query = @"
+                MATCH ()-[r]->()
+                WHERE r.date < $cutoffDate
+                WITH r, type(r) as relationshipType
+                DELETE r
+                RETURN relationshipType, COUNT(r) as deletedCount
+            ";
+            
+            var parameters = new Dictionary<string, object>
+            {
+                ["cutoffDate"] = cutoffDate
+            };
+            
+            await using var session = _context.AsyncSession();
+            
+            try
+            {
+                var result = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(query, parameters);
+                    var deletedByType = new Dictionary<string, int>();
+                    var totalDeleted = 0;
+                    
+                    while (await cursor.FetchAsync())
+                    {
+                        var relationshipType = cursor.Current["relationshipType"].As<string>();
+                        var deletedCount = cursor.Current["deletedCount"].As<int>();
+                        
+                        deletedByType[relationshipType] = deletedCount;
+                        totalDeleted += deletedCount;
+                    }
+                    
+                    return new DeleteOldEdgesResult
+                    {
+                        DeletedCount = totalDeleted,
+                        DeletedByType = deletedByType,
+                        CutoffDate = cutoffDate
+                    };
+                });
+                
+                Console.WriteLine($"Deleted {result.DeletedCount} edges older than {cutoffDate:yyyy-MM-dd HH:mm:ss}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting old edges: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<DeleteIsolatedNodesResult> DeleteIsolatedNodesAsync()
+        {
+            // Исправленный запрос - используем COUNT {} вместо size()
+            var deleteQuery = @"
+                MATCH (n)
+                WHERE COUNT { (n)--() } = 0
+                WITH n, labels(n)[0] as nodeType
+                DELETE n
+                RETURN nodeType, COUNT(n) as deletedCount
+            ";
+            
+            await using var session = _context.AsyncSession();
+            
+            try
+            {
+                var result = await session.ExecuteWriteAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync(deleteQuery);
+                    var deletedByType = new Dictionary<string, int>();
+                    var totalDeleted = 0;
+                    
+                    while (await cursor.FetchAsync())
+                    {
+                        var nodeType = cursor.Current["nodeType"].As<string>();
+                        var deletedCount = cursor.Current["deletedCount"].As<int>();
+                        
+                        deletedByType[nodeType] = deletedCount;
+                        totalDeleted += deletedCount;
+                    }
+                    
+                    return new DeleteIsolatedNodesResult
+                    {
+                        DeletedCount = totalDeleted,
+                        DeletedByType = deletedByType
+                    };
+                });
+                
+                Console.WriteLine($"Deleted {result.DeletedCount} isolated nodes");
+                
+                foreach (var (type, count) in result.DeletedByType)
+                {
+                    Console.WriteLine($"  - {type}: {count} nodes deleted");
+                }
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting isolated nodes: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

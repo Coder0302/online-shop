@@ -2,6 +2,7 @@
 using ECommerce.App.UseCases;
 using ECommerce.Data;
 using ECommerce.Data.Seeding;
+using ECommerce.Services.ClickHouse;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using Neo4j.Driver;
@@ -37,6 +38,7 @@ builder.Services.AddSingleton<IDriver>(_ => GraphDatabase.Driver(
 builder.Services.AddScoped<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>().GetDatabase("shop"));
 builder.Services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
 builder.Services.AddScoped<INeo4jService, Neo4jService>();
+builder.Services.AddScoped<IClickHouseService, ClickHouseService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

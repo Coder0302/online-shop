@@ -1,0 +1,1 @@
+OPTIMIZE TABLE analytics.events FINAL

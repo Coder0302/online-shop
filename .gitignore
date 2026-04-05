@@ -378,3 +378,7 @@ FodyWeavers.xsd
 
 grafana_data/
 grafana_data/alerting
+
+clickhouse/*
+!clickhouse/config.d
+!clickhouse/config.d/**

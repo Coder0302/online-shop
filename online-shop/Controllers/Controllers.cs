@@ -13,6 +13,114 @@ namespace ECommerce.Controller;
 
 [Route("api/[controller]")]
 [ApiController]
+public sealed class SystemNeo4j : ControllerBase
+{
+    private readonly INeo4jService _neo4jService;
+    private readonly ILogger<ShopController> _logger;
+
+    /// <summary>
+    /// Удаляет все связи (edges) старше указанного времени
+    /// </summary>
+    /// <param name="olderThan">Формат: "1m", "5m", "1h", "2h", "1d", "5d", "1w", "2w" (m=минуты, h=часы, d=дни, w=недели)</param>
+    [HttpDelete("system/edges/old")]
+    public async Task<IActionResult> DeleteOldEdges([FromQuery] string olderThan)
+    {
+        if (string.IsNullOrWhiteSpace(olderThan))
+        {
+            return BadRequest("Parameter 'olderThan' is required. Examples: '5m', '2h', '3d', '1w'");
+        }
+
+        if (!TryParseTimeSpan(olderThan, out var maxAge))
+        {
+            return BadRequest("Invalid format. Use formats like: '5m' (minutes), '2h' (hours), '3d' (days), '1w' (weeks)");
+        }
+
+        var cutoffDate = DateTime.UtcNow - maxAge;
+        _logger.LogInformation("Deleting edges older than {CutoffDate} (age: {MaxAge})", cutoffDate, maxAge);
+
+        try
+        {
+            var result = await _neo4jService.DeleteEdgesOlderThanAsync(cutoffDate);
+            
+            return Ok(new
+            {
+                success = true,
+                message = $"Deleted {result.DeletedCount} edges older than {olderThan} (cutoff: {cutoffDate:yyyy-MM-dd HH:mm:ss} UTC)",
+                details = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete old edges");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Удаляет все узлы (nodes), у которых нет связей (изолированные узлы)
+    /// </summary>
+    [HttpDelete("system/nodes/isolated")]
+    public async Task<IActionResult> DeleteIsolatedNodes()
+    {
+        _logger.LogInformation("Deleting isolated nodes (nodes without any relationships)");
+
+        try
+        {
+            var result = await _neo4jService.DeleteIsolatedNodesAsync();
+            
+            return Ok(new
+            {
+                success = true,
+                message = $"Deleted {result.DeletedCount} isolated nodes (nodes without relationships)",
+                details = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete isolated nodes");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Вспомогательный метод для парсинга временных интервалов
+    /// </summary>
+    private static bool TryParseTimeSpan(string input, out TimeSpan result)
+    {
+        result = TimeSpan.Zero;
+        
+        if (string.IsNullOrWhiteSpace(input))
+            return false;
+        
+        input = input.Trim().ToLowerInvariant();
+        
+        // Поддерживаемые форматы:
+        // 5m, 10m - минуты
+        // 2h, 12h - часы
+        // 3d, 7d - дни
+        // 1w, 4w - недели
+        
+        var numberPart = new string(input.TakeWhile(c => char.IsDigit(c)).ToArray());
+        var unitPart = input.Substring(numberPart.Length);
+        
+        if (!int.TryParse(numberPart, out var value) || value <= 0)
+            return false;
+        
+        result = unitPart switch
+        {
+            "m" => TimeSpan.FromMinutes(value),
+            "h" => TimeSpan.FromHours(value),
+            "d" => TimeSpan.FromDays(value),
+            "w" => TimeSpan.FromDays(value * 7),
+            _ => TimeSpan.Zero
+        };
+        
+        return result != TimeSpan.Zero;
+    }
+}
+
+[Route("api/[controller]")]
+[ApiController]
 public sealed class ShopController : ControllerBase
 {
     private const string ProductsCacheKey = "products";

@@ -2,6 +2,18 @@ using System.Text.Json.Serialization;
 
 namespace project.Models.Neo4jModels.Responses
 {
+    public record DeleteOldEdgesResult
+    {
+        public int DeletedCount { get; init; }
+        public Dictionary<string, int> DeletedByType { get; init; } = new();
+        public DateTime CutoffDate { get; init; }
+    }
+
+    public record DeleteIsolatedNodesResult
+    {
+        public int DeletedCount { get; init; }
+        public Dictionary<string, int> DeletedByType { get; init; } = new();
+    }
     /// <summary>
     /// Базовый ответ для всех операций с Neo4j
     /// </summary>
