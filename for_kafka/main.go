@@ -1,34 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
 
-type OrderCreated struct {
-	OrderID string `json:"order_id"`
-	Amount  int    `json:"amount"`
-	Who     string `json:"who_created"`
-	UserID  string `json:"user_id"`
-	Product string `json:"product"`
-}
-
-type orderCanceled struct {
-	OrderID int    `json:"order_id"`
-	Who     string `json:"who_created"`
-	UserID  int    `json:"user_id"`
-	Product string `json:"product"`
+type OrderStruct struct {
+	Fid  int    `json:"f_id"`
+	Sid  int    `json:"s_id"`
+	Time string `json:"timestamp"`
 }
 
 // sum, avg, min/max, count, collect_list/collect_set, topk
@@ -71,12 +63,6 @@ type orderCanceled struct {
 // >GROUP BY user_id, product
 // >EMIT CHANGES;
 
-type OrderPurchaised struct {
-	ProductID string `json:"product_id"`
-	UserID    string `json:"user_id"`
-	Rating    int    `json:"rating"`
-}
-
 type OrderDlQ struct {
 	Smth string `json:"smth"`
 }
@@ -96,7 +82,7 @@ func main() {
 	var group_id string
 	var ofst int64
 	var tpc int
-	topics := []string{"order-created", "order-canceled", "order-paid", "orders-dlq"}
+	topics := []string{"order-shown", "order-viewed", "order-liked", "order-purchaised", "order-bougt_together", "order-visited", "orders-dlq"}
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
 	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
@@ -122,211 +108,464 @@ func main() {
 	}
 	defer controllerConn.Close()
 
-	topicConfigs := []kafka.TopicConfig{{Topic: "order-created", NumPartitions: 5, ReplicationFactor: 3},
-		{Topic: "order-canceled", NumPartitions: 5, ReplicationFactor: 3},
-		{Topic: "order-paid", NumPartitions: 5, ReplicationFactor: 3}, {Topic: "orders-dlq", NumPartitions: 5, ReplicationFactor: 3}}
+	topicConfigs := []kafka.TopicConfig{}
+	for _, tp := range topics {
+		topicConfigs = append(topicConfigs, kafka.TopicConfig{Topic: tp, NumPartitions: 5, ReplicationFactor: 3})
+	}
 
 	err = controllerConn.CreateTopics(topicConfigs...)
 	if err != nil {
 		panic(err.Error())
 	}
+	go func() {
+		time_to_sleep := 1 * time.Minute
+		time_to_delete := 1 * time.Minute
+		body := struct {
+			Ttl int `json:"ttl"`
+		}{
+			Ttl: int(time_to_delete),
+		}
+		body_json, _ := json.Marshal(body)
+		url := "http://localhost:5000/api/smth"
+		http_client := &http.Client{}
+		for true {
+			time.Sleep(time_to_sleep)
+			req, _ := http.NewRequest("GET", url, bytes.NewBuffer(body_json))
+			_, err := http_client.Do(req)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
+	}()
 
 	if is_cons == false {
 		// producer
 
 		// при включённом автосоздании топиков он сам создатся и мы к нему подключимся и будем писать в него
 		// по дефолту эта настройка должна быть включена
-		what_created := []string{"printer", "scaner", "cable", "monitor", "pc", "ic", "acdc"}
-		order_id := 1
-		kafka_w_created := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[0], WriteTimeout: 10 * time.Second,
-			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
-		kafka_w_canceled := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[1], WriteTimeout: 10 * time.Second,
-			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
-		kafka_w_paid := &kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: topics[2], WriteTimeout: 10 * time.Second,
-			Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10}
+		// what_created := []string{"printer", "scaner", "cable", "monitor", "pc", "ic", "acdc"}
+		writers := []kafka.Writer{}
+		for a, tp := range topics {
+			writers = append(writers, kafka.Writer{Addr: kafka.TCP(kafkas...), Topic: tp, WriteTimeout: 10 * time.Second,
+				Balancer: &kafka.Hash{}, AllowAutoTopicCreation: true, ReadTimeout: 5 * time.Second, MaxAttempts: 10})
+			defer writers[a].Close()
+		}
+		// order_id := 1
 
-		defer kafka_w_created.Close()
-		defer kafka_w_canceled.Close()
-		defer kafka_w_paid.Close()
+		stores_ids := []string{"First", "Second", "Third", "Fourth"}
 		who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
 		l := big.NewInt(int64(len(who_purchase)))
 		m := big.NewInt(100)
+		stores_len := big.NewInt(int64(len(stores_ids)))
 		time.Sleep(10000)
 		for true {
 			t, _ := rand.Int(rand.Reader, m)
+			val := t.Int64()
 			timestamp := time.Now()
 			who, _ := rand.Int(rand.Reader, l)
 			what, _ := rand.Int(rand.Reader, l)
-			if t.Cmp(big.NewInt(30)) == -1 {
-				payload := OrderCreated{
-					OrderID: strconv.Itoa(order_id),
-					Amount:  1,
-					Who:     who_purchase[who.Int64()],
-					UserID:  who.String(),
-					Product: what_created[what.Int64()],
-				}
-				to_write, _ := json.Marshal(payload)
-				msg := kafka.Message{
-					Key:   []byte(who.String()),
-					Value: to_write,
-					Time:  timestamp,
-					Headers: []kafka.Header{
-						{
-							Key:   "eventType",
-							Value: []byte("OrderCreated"),
-						},
-						{
-							Key:   "eventID",
-							Value: []byte("0"),
-						},
-						{
-							Key:   "entityID",
-							Value: who.Bytes(),
-						},
-						{
-							Key:   "Source",
-							Value: []byte("from Go"),
-						},
-						{
-							Key:   "version",
-							Value: []byte("1"),
-						},
-						{
-							Key:   "timestamp",
-							Value: []byte(time.Now().Format(time.RFC3339)),
-						},
-					},
-				}
-				err := kafka_w_created.WriteMessages(context.Background(), msg)
-				if err != nil {
-					log.Fatal("failed to write messages: ", err)
-				}
-				fmt.Print("Order Created ", payload, "\n")
-			} else if t.Cmp(big.NewInt(60)) == -1 {
-				payload := OrderPurchaised{
-					ProductID: what.String(),
-					UserID:    who.String(),
-					Rating:    5,
-				}
-				to_write, _ := json.Marshal(payload)
-				msg := kafka.Message{
-					Key:   []byte(who.String()),
-					Value: to_write,
-					Time:  timestamp,
-					Headers: []kafka.Header{
-						{
-							Key:   "eventType",
-							Value: []byte("OrderPurchaised"),
-						},
-						{
-							Key:   "eventID",
-							Value: []byte("0"),
-						},
-						{
-							Key:   "entityID",
-							Value: who.Bytes(),
-						},
-						{
-							Key:   "Source",
-							Value: []byte("from Go"),
-						},
-						{
-							Key:   "version",
-							Value: []byte("1"),
-						},
-						{
-							Key:   "timestamp",
-							Value: []byte(time.Now().Format(time.RFC3339)),
-						},
-					},
-				}
-				kafka_w_paid.WriteMessages(context.TODO(), msg)
-				fmt.Print("Order Purchaised ", payload, "\n")
-			} else {
-				t, _ := rand.Int(rand.Reader, big.NewInt(10))
-				payload := orderCanceled{
-					OrderID: order_id,
-					Who:     who_purchase[who.Int64()],
-					UserID:  int(who.Int64()),
-					Product: what_created[what.Int64()],
-				}
-				if t.Cmp(big.NewInt(6)) == -1 {
-					payload := OrderDlQ{
-						Smth: "this is an error",
-					}
-					to_write, _ := json.Marshal(payload)
-					msg := kafka.Message{
-						Key:   []byte(who.String()),
-						Value: to_write,
-						Time:  timestamp,
-						Headers: []kafka.Header{
-							{
-								Key:   "eventType",
-								Value: []byte("OrderCanceled"),
-							},
-							{
-								Key:   "eventID",
-								Value: []byte("0"),
-							},
-							{
-								Key:   "entityID",
-								Value: who.Bytes(),
-							},
-							{
-								Key:   "Source",
-								Value: []byte("from Go"),
-							},
-							{
-								Key:   "version",
-								Value: []byte("1"),
-							},
-							{
-								Key:   "timestamp",
-								Value: []byte(time.Now().Format(time.RFC3339)),
-							},
-						},
-					}
-					kafka_w_canceled.WriteMessages(context.TODO(), msg)
-					fmt.Print("Order Canceled ", payload, "\n")
-				} else {
-					to_write, _ := json.Marshal(payload)
-					msg := kafka.Message{
-						Key:   []byte(who.String()),
-						Value: to_write,
-						Time:  timestamp,
-						Headers: []kafka.Header{
-							{
-								Key:   "eventType",
-								Value: []byte("OrderCanceled"),
-							},
-							{
-								Key:   "eventID",
-								Value: []byte("0"),
-							},
-							{
-								Key:   "entityID",
-								Value: who.Bytes(),
-							},
-							{
-								Key:   "Source",
-								Value: []byte("from Go"),
-							},
-							{
-								Key:   "version",
-								Value: []byte("1"),
-							},
-							{
-								Key:   "timestamp",
-								Value: []byte(time.Now().Format(time.RFC3339)),
-							},
-						},
-					}
-					kafka_w_canceled.WriteMessages(context.TODO(), msg)
-					fmt.Print("Order Canceled ", payload, "\n")
-				}
+			msg := OrderStruct{
+				Fid:  int(who.Int64()),
+				Sid:  int(what.Int64()),
+				Time: timestamp.String(),
 			}
-			order_id++
+			to_payload, _ := json.Marshal(msg)
+			if val > 10 {
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Shown"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("0"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[0].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: Shown: %s\n", to_payload)
+			}
+			if val > 17 {
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Viewed"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("5"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[1].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: viewed: %s\n", to_payload)
+			}
+			if val > 34 {
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Liked"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("2"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[2].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: Liked: %s\n", to_payload)
+			}
+			if val > 61 {
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Purchaised"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("3"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[3].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: Purchaised: %s\n", to_payload)
+			}
+			if val > 78 {
+				new_what := what
+				for new_what == what {
+					new_what, _ = rand.Int(rand.Reader, l)
+				}
+				msg := OrderStruct{
+					Fid:  int(who.Int64()),
+					Sid:  int(new_what.Int64()),
+					Time: timestamp.String(),
+				}
+				to_payload, _ := json.Marshal(msg)
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Bought-together"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("4"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[4].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: Bought together: %s\n", to_payload)
+			}
+			if val > 90 {
+				where, _ := rand.Int(rand.Reader, stores_len)
+				msg = OrderStruct{
+					Fid:  int(who.Int64()),
+					Sid:  int(where.Int64()),
+					Time: timestamp.String(),
+				}
+				to_payload, _ = json.Marshal(msg)
+				message := kafka.Message{
+					Key:   []byte(who.String()),
+					Value: to_payload,
+					Time:  timestamp,
+					Headers: []kafka.Header{
+						{
+							Key:   "eventType",
+							Value: []byte("Order-Visited"),
+						},
+						{
+							Key:   "eventID",
+							Value: []byte("5"),
+						},
+						{
+							Key:   "entityID",
+							Value: who.Bytes(),
+						},
+						{
+							Key:   "Source",
+							Value: []byte("from Go"),
+						},
+						{
+							Key:   "version",
+							Value: []byte("1"),
+						},
+						{
+							Key:   "timestamp",
+							Value: []byte(time.Now().Format(time.RFC3339)),
+						},
+					},
+				}
+				writers[5].WriteMessages(context.TODO(), message)
+				fmt.Printf("event: Visited: %s\n", to_payload)
+			}
 			time.Sleep(time.Duration(5000))
+			// if t.Cmp(big.NewInt(30)) == -1 {
+			// 	payload := OrderCreated{
+			// 		OrderID: strconv.Itoa(order_id),
+			// 		Amount:  1,
+			// 		Who:     who_purchase[who.Int64()],
+			// 		UserID:  who.String(),
+			// 		Product: what_created[what.Int64()],
+			// 	}
+			// 	to_write, _ := json.Marshal(payload)
+			// msg := kafka.Message{
+			// 	Key:   []byte(who.String()),
+			// 	Value: to_write,
+			// 	Time:  timestamp,
+			// 	Headers: []kafka.Header{
+			// 		{
+			// 			Key:   "eventType",
+			// 			Value: []byte("OrderCreated"),
+			// 		},
+			// 		{
+			// 			Key:   "eventID",
+			// 			Value: []byte("0"),
+			// 		},
+			// 		{
+			// 			Key:   "entityID",
+			// 			Value: who.Bytes(),
+			// 		},
+			// 		{
+			// 			Key:   "Source",
+			// 			Value: []byte("from Go"),
+			// 		},
+			// 		{
+			// 			Key:   "version",
+			// 			Value: []byte("1"),
+			// 		},
+			// 		{
+			// 			Key:   "timestamp",
+			// 			Value: []byte(time.Now().Format(time.RFC3339)),
+			// 		},
+			// 	},
+			// 	}
+			// 	err := kafka_w_created.WriteMessages(context.Background(), msg)
+			// 	if err != nil {
+			// 		log.Fatal("failed to write messages: ", err)
+			// 	}
+			// 	fmt.Print("Order Created ", payload, "\n")
+			// } else if t.Cmp(big.NewInt(60)) == -1 {
+			// 	payload := OrderPurchaised{
+			// 		ProductID: what.String(),
+			// 		UserID:    who.String(),
+			// 		Rating:    5,
+			// 	}
+			// 	to_write, _ := json.Marshal(payload)
+			// 	msg := kafka.Message{
+			// 		Key:   []byte(who.String()),
+			// 		Value: to_write,
+			// 		Time:  timestamp,
+			// 		Headers: []kafka.Header{
+			// 			{
+			// 				Key:   "eventType",
+			// 				Value: []byte("OrderPurchaised"),
+			// 			},
+			// 			{
+			// 				Key:   "eventID",
+			// 				Value: []byte("0"),
+			// 			},
+			// 			{
+			// 				Key:   "entityID",
+			// 				Value: who.Bytes(),
+			// 			},
+			// 			{
+			// 				Key:   "Source",
+			// 				Value: []byte("from Go"),
+			// 			},
+			// 			{
+			// 				Key:   "version",
+			// 				Value: []byte("1"),
+			// 			},
+			// 			{
+			// 				Key:   "timestamp",
+			// 				Value: []byte(time.Now().Format(time.RFC3339)),
+			// 			},
+			// 		},
+			// 	}
+			// 	kafka_w_paid.WriteMessages(context.TODO(), msg)
+			// 	fmt.Print("Order Purchaised ", payload, "\n")
+			// } else {
+			// 	t, _ := rand.Int(rand.Reader, big.NewInt(10))
+			// 	payload := orderCanceled{
+			// 		OrderID: order_id,
+			// 		Who:     who_purchase[who.Int64()],
+			// 		UserID:  int(who.Int64()),
+			// 		Product: what_created[what.Int64()],
+			// 	}
+			// 	if t.Cmp(big.NewInt(6)) == -1 {
+			// 		payload := OrderDlQ{
+			// 			Smth: "this is an error",
+			// 		}
+			// 		to_write, _ := json.Marshal(payload)
+			// 		msg := kafka.Message{
+			// 			Key:   []byte(who.String()),
+			// 			Value: to_write,
+			// 			Time:  timestamp,
+			// 			Headers: []kafka.Header{
+			// 				{
+			// 					Key:   "eventType",
+			// 					Value: []byte("OrderCanceled"),
+			// 				},
+			// 				{
+			// 					Key:   "eventID",
+			// 					Value: []byte("0"),
+			// 				},
+			// 				{
+			// 					Key:   "entityID",
+			// 					Value: who.Bytes(),
+			// 				},
+			// 				{
+			// 					Key:   "Source",
+			// 					Value: []byte("from Go"),
+			// 				},
+			// 				{
+			// 					Key:   "version",
+			// 					Value: []byte("1"),
+			// 				},
+			// 				{
+			// 					Key:   "timestamp",
+			// 					Value: []byte(time.Now().Format(time.RFC3339)),
+			// 				},
+			// 			},
+			// 		}
+			// 		kafka_w_canceled.WriteMessages(context.TODO(), msg)
+			// 		fmt.Print("Order Canceled ", payload, "\n")
+			// 	} else {
+			// 		to_write, _ := json.Marshal(payload)
+			// 		msg := kafka.Message{
+			// 			Key:   []byte(who.String()),
+			// 			Value: to_write,
+			// 			Time:  timestamp,
+			// 			Headers: []kafka.Header{
+			// 				{
+			// 					Key:   "eventType",
+			// 					Value: []byte("OrderCanceled"),
+			// 				},
+			// 				{
+			// 					Key:   "eventID",
+			// 					Value: []byte("0"),
+			// 				},
+			// 				{
+			// 					Key:   "entityID",
+			// 					Value: who.Bytes(),
+			// 				},
+			// 				{
+			// 					Key:   "Source",
+			// 					Value: []byte("from Go"),
+			// 				},
+			// 				{
+			// 					Key:   "version",
+			// 					Value: []byte("1"),
+			// 				},
+			// 				{
+			// 					Key:   "timestamp",
+			// 					Value: []byte(time.Now().Format(time.RFC3339)),
+			// 				},
+			// 			},
+			// 		}
+			// 		kafka_w_canceled.WriteMessages(context.TODO(), msg)
+			// 		fmt.Print("Order Canceled ", payload, "\n")
+			// 	}
+			// }
 		}
 	} else {
 		r_cfg := kafka.ReaderConfig{Brokers: kafkas, GroupID: group_id, Topic: topics[tpc], StartOffset: ofst}
