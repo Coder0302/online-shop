@@ -1,18 +1,109 @@
-curl -X POST -H "Content-Type: application/json" --data '{
-  "name": "neo4j-sink-orderpaid",
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-productshown
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-productviewed
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-productliked
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-orderpaid
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-boughttogether
+curl -X DELETE http://localhost:8083/connectors/neo4j-sink-storevisited
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-productshown",
   "config": {
     "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
-    "tasks.max": "1",
-    "topics": "order-paid",
+    "topics": "order_shown",
+    "consumer.auto.offset.reset": "earliest",
     "neo4j.uri": "bolt://neo4j:7687",
-    "neo4j.authentication.type": "BASIC",
     "neo4j.authentication.basic.username": "neo4j",
     "neo4j.authentication.basic.password": "password",
-    "neo4j.database": "neo4j",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_shown": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:SHOWN]->(pr) SET r.type = 0, r.name = \"SHOWN\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+  }
+}'
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-productviewed",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "order_viewed",
+    "consumer.auto.offset.reset": "earliest",
+    "neo4j.uri": "bolt://neo4j:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "password",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
-    "neo4j.cypher.topic.order-paid": "MERGE (u:User {ext_id: event.user_id}) MERGE (pr:Product {ext_id: event.product_id}) MERGE (u)-[r:PURCHASED]->(pr) SET r.date = datetime({epochMillis: event.timestamp}), r.type = 3, r.name = 'PURCHASED', r.rating = event.rating"
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_viewed": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:VIEWED]->(pr) SET r.type = 1, r.name = \"VIEWED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
   }
-}' http://localhost:8083/connectors
+}'
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-productliked",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "order_liked",
+    "consumer.auto.offset.reset": "earliest",
+    "neo4j.uri": "bolt://neo4j:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "password",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_liked": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:LIKED]->(pr) SET r.type = 2, r.name = \"LIKED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+  }
+}'
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-orderpaid",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "order_purchaised",
+    "consumer.auto.offset.reset": "earliest",
+    "neo4j.uri": "bolt://neo4j:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "password",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_purchaised": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:PURCHASED]->(pr) SET r.type = 3, r.name = \"PURCHASED\", r.rating = event.rating, r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+  }
+}'
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-boughttogether",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "order_bought_together",
+    "consumer.auto.offset.reset": "earliest",
+    "neo4j.uri": "bolt://neo4j:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "password",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_bought_together": "MERGE (p1:Product {ext_id: toInteger(event.id2)}) SET p1.type = 2 MERGE (p2:Product {ext_id: toInteger(event.elated_sid2)}) SET p2.type = 2 MERGE (p1)-[r:BOUGHT_TOGETHER]->(p2) SET r.type = 4, r.name = \"BOUGHT_TOGETHER\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+  }
+}'
+
+curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d '{
+  "name": "neo4j-sink-storevisited",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "order_visited",
+    "consumer.auto.offset.reset": "earliest",
+    "neo4j.uri": "bolt://neo4j:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "password",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "orders-dlq",
+    "neo4j.cypher.topic.order_visited": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (s:Store {ext_id: toInteger(event.id2)}) SET s.type = 3 MERGE (u)-[r:VISITED]->(s) SET r.type = 5, r.name = \"VISITED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+  }
+}'

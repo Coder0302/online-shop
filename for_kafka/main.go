@@ -18,8 +18,8 @@ import (
 )
 
 type OrderStruct struct {
-	Fid  int    `json:"id1"`
-	Sid  int    `json:"id2"`
+	Fid  string `json:"id1"`
+	Sid  string `json:"id2"`
 	Time string `json:"time_str"`
 }
 
@@ -69,7 +69,7 @@ type OrderDlQ struct {
 
 // для ksql:
 // так как обысно используется лишь верхний регистр, то если что-то в маленьком регистре оборачивать в ``
-// create stream canceled (`order_id` bigint, `who_created` varchar, `user_id` bigint, `product` varchar) with ( KAFKA_TOPIC='order-canceled', value_format='JSON');
+// create stream canceled (`order_id` bigint, `who_created` varchar, `user_id` bigint, `product` varchar) with ( KAFKA_TOPIC='order_canceled', value_format='JSON');
 // create table canceled_users as select userid, latest_by_offset(id) AS usID from second_orders_canceled group by userid;
 
 // запуск
@@ -82,7 +82,7 @@ func main() {
 	var group_id string
 	var ofst int64
 	var tpc int
-	topics := []string{"order-shown", "order-viewed", "order-liked", "order-purchaised", "order-bought_together", "order-visited", "orders-dlq"}
+	topics := []string{"order_shown", "order_viewed", "order_liked", "order_purchaised", "order_bought_together", "order_visited", "orders-dlq"}
 	flag.BoolVar(&is_cons, "consumer", false, "set consumer or producer mode")
 	flag.StringVar(&group_id, "group", "first", "set group id. Only use in consumer mode")
 	flag.Int64Var(&ofst, "ofset", 0, "set ofset of reading topic, use only in consumer mode")
@@ -155,8 +155,8 @@ func main() {
 		// order_id := 1
 
 		stores_ids := []string{"First", "Second", "Third", "Fourth"}
-		who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
-		l := big.NewInt(int64(len(who_purchase)))
+		// __who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
+		l := big.NewInt(200)
 		m := big.NewInt(100)
 		stores_len := big.NewInt(int64(len(stores_ids)))
 		time.Sleep(10000)
@@ -167,8 +167,8 @@ func main() {
 			who, _ := rand.Int(rand.Reader, l)
 			what, _ := rand.Int(rand.Reader, l)
 			msg := OrderStruct{
-				Fid:  int(who.Int64()),
-				Sid:  int(what.Int64()),
+				Fid:  who.String(),
+				Sid:  what.String(),
 				Time: timestamp.Format("2006-01-02 15:04:05"),
 			}
 			to_payload, _ := json.Marshal(msg)
@@ -180,7 +180,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Shown"),
+							Value: []byte("Order_Shown"),
 						},
 						{
 							Key:   "eventID",
@@ -215,7 +215,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Viewed"),
+							Value: []byte("Order_Viewed"),
 						},
 						{
 							Key:   "eventID",
@@ -250,7 +250,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Liked"),
+							Value: []byte("Order_Liked"),
 						},
 						{
 							Key:   "eventID",
@@ -285,7 +285,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Purchaised"),
+							Value: []byte("Order_Purchaised"),
 						},
 						{
 							Key:   "eventID",
@@ -315,11 +315,11 @@ func main() {
 			if val > 78 {
 				new_what := what
 				for new_what == what {
-					new_what, _ = rand.Int(rand.Reader, l)
+					new_what, _ = rand.Int(rand.Reader, big.NewInt(25))
 				}
 				msg := OrderStruct{
-					Fid:  int(who.Int64()),
-					Sid:  int(new_what.Int64()),
+					Fid:  who.String(),
+					Sid:  what.String(),
 					Time: timestamp.String(),
 				}
 				to_payload, _ := json.Marshal(msg)
@@ -330,7 +330,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Bought-together"),
+							Value: []byte("Order_Bought-together"),
 						},
 						{
 							Key:   "eventID",
@@ -360,8 +360,8 @@ func main() {
 			if val > 90 {
 				where, _ := rand.Int(rand.Reader, stores_len)
 				msg = OrderStruct{
-					Fid:  int(who.Int64()),
-					Sid:  int(where.Int64()),
+					Fid:  who.String(),
+					Sid:  where.String(),
 					Time: timestamp.String(),
 				}
 				to_payload, _ = json.Marshal(msg)
@@ -372,7 +372,7 @@ func main() {
 					Headers: []kafka.Header{
 						{
 							Key:   "eventType",
-							Value: []byte("Order-Visited"),
+							Value: []byte("Order_Visited"),
 						},
 						{
 							Key:   "eventID",
