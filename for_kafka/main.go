@@ -154,11 +154,11 @@ func main() {
 		}
 		// order_id := 1
 
-		stores_ids := []string{"First", "Second", "Third", "Fourth"}
+		// stores_ids := []string{"First", "Second", "Third", "Fourth"}
 		// __who_purchase := []string{"Ivan", "Makson", "Andrew", "Vladimir", "Vladislav", "Olga", "Eva"} // место в списке = orderID по которому будет ключ
 		l := big.NewInt(200)
 		m := big.NewInt(100)
-		stores_len := big.NewInt(int64(len(stores_ids)))
+		// stores_len := big.NewInt(int64(len(stores_ids)))
 		time.Sleep(10000)
 		for true {
 			t, _ := rand.Int(rand.Reader, m)
@@ -240,7 +240,7 @@ func main() {
 					},
 				}
 				writers[1].WriteMessages(context.TODO(), message)
-				fmt.Printf("event: viewed: %s\n", to_payload)
+				fmt.Printf("event: Viewed: %s\n", to_payload)
 			}
 			if val > 34 {
 				message := kafka.Message{
@@ -358,7 +358,7 @@ func main() {
 				fmt.Printf("event: Bought together: %s\n", to_payload)
 			}
 			if val > 90 {
-				where, _ := rand.Int(rand.Reader, stores_len)
+				where, _ := rand.Int(rand.Reader, big.NewInt(25))
 				msg = OrderStruct{
 					Fid:  who.String(),
 					Sid:  where.String(),
