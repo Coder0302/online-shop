@@ -128,12 +128,18 @@ func main() {
 			OlderThen: ttl,
 		}
 		body_json, _ := json.Marshal(body)
-		url := "http://localhost:5000/api/SystemNeo4j/system/edges/old?olderThen" + strconv.Itoa(time_to_delete) + how_to_del
+		url := "http://localhost:5000/api/SystemNeo4j/system/edges/old?olderThan=" + strconv.Itoa(time_to_delete) + how_to_del
+		url_t := "http://localhost:5000/api/SystemNeo4j/system/nodes/isolated"
 		http_client := &http.Client{}
 		for true {
 			time.Sleep(time_to_sleep)
 			req, _ := http.NewRequest("DELETE", url, bytes.NewBuffer(body_json))
 			_, err := http_client.Do(req)
+			if err != nil {
+				// fmt.Println(err.Error())
+			}
+			n_req, _ := http.NewRequest("DELETE", url_t, nil)
+			_, err = http_client.Do(n_req)
 			if err != nil {
 				// fmt.Println(err.Error())
 			}

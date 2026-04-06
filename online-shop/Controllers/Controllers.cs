@@ -17,6 +17,14 @@ public sealed class SystemNeo4j : ControllerBase
 {
     private readonly INeo4jService _neo4jService;
     private readonly ILogger<ShopController> _logger;
+    private readonly ILogger<SystemNeo4j> _n4jlogger;
+
+    public SystemNeo4j(INeo4jService neo4jService, ILogger<SystemNeo4j> logger, ILogger<ShopController> sh_lg)
+    {
+        _neo4jService = neo4jService;
+        _n4jlogger = logger;
+        _logger = sh_lg;
+    }
 
     /// <summary>
     /// Удаляет все связи (edges) старше указанного времени
@@ -35,8 +43,8 @@ public sealed class SystemNeo4j : ControllerBase
             return BadRequest("Invalid format. Use formats like: '5m' (minutes), '2h' (hours), '3d' (days), '1w' (weeks)");
         }
 
-        var cutoffDate = DateTime.UtcNow - maxAge;
-        _logger.LogInformation("Deleting edges older than {CutoffDate} (age: {MaxAge})", cutoffDate, maxAge);
+        var cutoffDate = DateTime.Now - maxAge;
+        // _logger.LogInformation("Deleting edges older than {CutoffDate} (age: {MaxAge})", cutoffDate, maxAge);
 
         try
         {
@@ -51,7 +59,7 @@ public sealed class SystemNeo4j : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete old edges");
+            // _logger.LogError(ex, "Failed to delete old edges");
             return StatusCode(500, new { success = false, error = ex.Message });
         }
     }
@@ -77,7 +85,7 @@ public sealed class SystemNeo4j : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete isolated nodes");
+            // _n4jlogger.LogError(ex, "Failed to delete isolated nodes");
             return StatusCode(500, new { success = false, error = ex.Message });
         }
     }

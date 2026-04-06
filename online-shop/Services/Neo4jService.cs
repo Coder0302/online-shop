@@ -1363,9 +1363,10 @@ namespace project.Services
 
         public async Task<DeleteOldEdgesResult> DeleteEdgesOlderThanAsync(DateTime cutoffDate)
         {
+            string dateStr = cutoffDate.ToString("s");
             var query = @"
                 MATCH ()-[r]->()
-                WHERE r.date < $cutoffDate
+                WHERE r.date < datetime($dateStr)
                 WITH r, type(r) as relationshipType
                 DELETE r
                 RETURN relationshipType, COUNT(r) as deletedCount
@@ -1373,7 +1374,7 @@ namespace project.Services
             
             var parameters = new Dictionary<string, object>
             {
-                ["cutoffDate"] = cutoffDate
+                ["dateStr"] = dateStr
             };
             
             await using var session = _context.AsyncSession();
