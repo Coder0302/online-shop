@@ -18,9 +18,9 @@ import (
 )
 
 type OrderStruct struct {
-	Fid  int    `json:"f_id"`
-	Sid  int    `json:"s_id"`
-	Time string `json:"timestamp"`
+	Fid  int    `json:"id1"`
+	Sid  int    `json:"id2"`
+	Time string `json:"time_str"`
 }
 
 // sum, avg, min/max, count, collect_list/collect_set, topk
@@ -169,7 +169,7 @@ func main() {
 			msg := OrderStruct{
 				Fid:  int(who.Int64()),
 				Sid:  int(what.Int64()),
-				Time: timestamp.String(),
+				Time: timestamp.Format("2006-01-02 15:04:05"),
 			}
 			to_payload, _ := json.Marshal(msg)
 			if val > 10 {

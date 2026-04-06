@@ -11,7 +11,7 @@ def insert_batch(events):
     
     lines = []
     for e in events:
-        line = f'{{"event_time":"{e["event_time"]}","event_type":"{e["event_type"]}","user_id":{e["user_id"]},"product_id":{e["product_id"]},"shop_id":{e["shop_id"]},"related_product_id":{e["related_product_id"]},"kafka_topic":"{e["kafka_topic"]}","kafka_partition":{e["kafka_partition"]},"kafka_offset":{e["kafka_offset"]},"processed_at":"{e["processed_at"]}"}}'
+        line = f'{{"event_time":"{e["event_time"]}.000","event_type":"{e["event_type"]}","user_id":{e["user_id"]},"product_id":{e["product_id"]},"shop_id":{e["shop_id"]},"related_product_id":{e["related_product_id"]},"kafka_topic":"{e["kafka_topic"]}","kafka_partition":{e["kafka_partition"]},"kafka_offset":{e["kafka_offset"]},"processed_at":"{e["processed_at"]}"}}'
         lines.append(line)
     
     data = "\n".join(lines)
@@ -97,11 +97,11 @@ for day in range(60):
         batch.append(event)
         if((hour == 15 or minute == 15 or second == 15) and dublicate_event != None):
             #print("add dublicate", dublicate_event)
-            batch.append(dublicate_event)
+            batch.append(dublicate_event.copy())
             dublicate_event = None
         if(hour == 10 or minute == 10 or second == 10):
             #print("save dublicate", event)
-            dublicate_event = event
+            dublicate_event = event.copy()
         
         total += 1
         

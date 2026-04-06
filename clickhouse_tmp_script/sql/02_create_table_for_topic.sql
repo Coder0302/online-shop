@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_purchased (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'purchased',
+         kafka_topic_list = 'order-purchaised',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_shown (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'shown',
+         kafka_topic_list = 'order-shown',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow';
 
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_viewed (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'viewed',
+         kafka_topic_list = 'order-viewed',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow';
 
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_liked (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'liked',
+         kafka_topic_list = 'order-liked',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow';
 
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_bought_together (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'bought_together',
+         kafka_topic_list = 'order-bougt_together',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow';
 
@@ -61,6 +61,6 @@ CREATE TABLE IF NOT EXISTS analytics.kafka_visited (
     time_str String
 ) ENGINE = Kafka
 SETTINGS kafka_broker_list = 'kafka_f:9093',
-         kafka_topic_list = 'visited',
+         kafka_topic_list = 'order-visited',
          kafka_group_name = 'clickhouse_consumer_group',
          kafka_format = 'JSONEachRow';

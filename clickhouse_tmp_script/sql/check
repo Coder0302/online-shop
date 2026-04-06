@@ -1,0 +1,3 @@
+SELECT count() FROM analytics.events;
+SELECT * FROM analytics.events ORDER BY event_time DESC LIMIT 10;
+SELECT event_type, count() FROM analytics.events GROUP BY event_type;

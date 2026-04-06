@@ -4,8 +4,7 @@ CREATE TABLE IF NOT EXISTS analytics.hourly_stats (
     hour UInt8,
     event_type String,
     events_count UInt64,
-    unique_users UInt64,
-    avg_duration Float64
+    unique_users UInt64
 ) ENGINE = SummingMergeTree()
 ORDER BY (date, hour, event_type);
 
@@ -16,8 +15,7 @@ SELECT
     toHour(event_time) AS hour,
     event_type,
     count() AS events_count,
-    uniq(user_id) AS unique_users,
-    avg(duration_sec) AS avg_duration
+    uniq(user_id) AS unique_users
 FROM analytics.events
 WHERE event_time IS NOT NULL
 GROUP BY date, hour, event_type;
