@@ -19,7 +19,7 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_shown": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:SHOWN]->(pr) SET r.type = 0, r.name = \"SHOWN\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_shown": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:SHOWN]->(pr) SET r.type = 0, r.name = \"SHOWN\", r.date = datetime((substring(event.time_str, 0, 19))"
   }
 }'
 
@@ -36,7 +36,7 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_viewed": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:VIEWED]->(pr) SET r.type = 1, r.name = \"VIEWED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_viewed": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:VIEWED]->(pr) SET r.type = 1, r.name = \"VIEWED\", r.date = datetime(substring(event.time_str, 0, 19))"
   }
 }'
 
@@ -53,7 +53,7 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_liked": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:LIKED]->(pr) SET r.type = 2, r.name = \"LIKED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_liked": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:LIKED]->(pr) SET r.type = 2, r.name = \"LIKED\", r.date = datetime((substring(event.time_str, 0, 19))"
   }
 }'
 
@@ -70,7 +70,7 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_purchaised": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:PURCHASED]->(pr) SET r.type = 3, r.name = \"PURCHASED\", r.rating = event.rating, r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_purchaised": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (pr:Product {ext_id: toInteger(event.id2)}) SET pr.type = 2 MERGE (u)-[r:PURCHASED]->(pr) SET r.type = 3, r.name = \"PURCHASED\", r.rating = event.rating, r.date = datetime(substring(event.time_str, 0, 19))"
   }
 }'
 
@@ -87,7 +87,7 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_bought_together": "MERGE (p1:Product {ext_id: toInteger(event.id2)}) SET p1.type = 2 MERGE (p2:Product {ext_id: toInteger(event.elated_sid2)}) SET p2.type = 2 MERGE (p1)-[r:BOUGHT_TOGETHER]->(p2) SET r.type = 4, r.name = \"BOUGHT_TOGETHER\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_bought_together": "MERGE (p1:Product {ext_id: toInteger(event.id1)}) SET p1.type = 2 MERGE (p2:Product {ext_id: toInteger(event.id2)}) SET p2.type = 2 MERGE (p1)-[r:BOUGHT_TOGETHER]->(p2) SET r.type = 4, r.name = \"BOUGHT_TOGETHER\", r.date = datetime(substring(event.time_str, 0, 19))"
   }
 }'
 
@@ -104,6 +104,6 @@ curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json
     "value.converter.schemas.enable": "false",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "orders-dlq",
-    "neo4j.cypher.topic.order_visited": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (s:Store {ext_id: toInteger(event.id2)}) SET s.type = 3 MERGE (u)-[r:VISITED]->(s) SET r.type = 5, r.name = \"VISITED\", r.date = datetime(replace(substring(event.time_str, 0, 19), \" \", \"T\"))"
+    "neo4j.cypher.topic.order_visited": "MERGE (u:User {ext_id: toInteger(event.id1)}) SET u.type = 1 MERGE (s:Store {ext_id: toInteger(event.id2)}) SET s.type = 3 MERGE (u)-[r:VISITED]->(s) SET r.type = 5, r.name = \"VISITED\", r.date = datetime(substring(event.time_str, 0, 19))"
   }
 }'

@@ -128,7 +128,7 @@ func main() {
 			OlderThen: ttl,
 		}
 		body_json, _ := json.Marshal(body)
-		url := "http://localhost:5000/api/SystemNeo4j/system/edges/old?" + strconv.Itoa(time_to_delete) + how_to_del
+		url := "http://localhost:5000/api/SystemNeo4j/system/edges/old?olderThen" + strconv.Itoa(time_to_delete) + how_to_del
 		http_client := &http.Client{}
 		for true {
 			time.Sleep(time_to_sleep)
@@ -320,7 +320,7 @@ func main() {
 				msg := OrderStruct{
 					Fid:  who.String(),
 					Sid:  what.String(),
-					Time: timestamp.String(),
+					Time: timestamp.Format("2006-01-02 15:04:05"),
 				}
 				to_payload, _ := json.Marshal(msg)
 				message := kafka.Message{
@@ -362,9 +362,9 @@ func main() {
 				msg = OrderStruct{
 					Fid:  who.String(),
 					Sid:  where.String(),
-					Time: timestamp.String(),
+					Time: timestamp.Format("2006-01-02 15:04:05"),
 				}
-				to_payload, _ = json.Marshal(msg)
+				to_payload, _ := json.Marshal(msg)
 				message := kafka.Message{
 					Key:   []byte(who.String()),
 					Value: to_payload,
